@@ -74,15 +74,38 @@ ROLLING_WINDOW = 5
 # stops trilateration from using stale data if an anchor goes quiet
 READING_MAX_AGE = 10.0
 
+DB_FLUSH_INTERVAL = 2.0
+
 # ============================================================
 
 
-# In-memory state. anchor_id -> {"history": [...rssi...]}
+# In-memory state. anchor_id -> {"history": [...rssi...], "avg_rssi": ..., "distance": ..., "last_seen": ...}
 state_lock = threading.Lock()
 anchor_state = {}
 
-# Trail limit to fetch from database
-MAX_TRAIL = 50
+position_trail = []
+MAX_TRAIL = 200
+last_flushed_trail_index = 0
+
+def load_state_from_db():
+    global position_trail, last_flushed_trail_index
+    try:
+        readings = db.get_all_anchor_readings()
+        with state_lock:
+            for r in readings:
+                anchor_state[r["anchor_id"]] = {
+                    "history": [r["rssi"]] if r.get("rssi") is not None else [],
+                    "avg_rssi": r["rssi"],
+                    "distance": r["distance"],
+                    "last_seen": r["last_seen"]
+                }
+            
+            trail_records = db.get_recent_trail(limit=MAX_TRAIL)
+            position_trail = [{"x": r["x"], "y": r["y"], "t": r["t"]} for r in trail_records]
+            last_flushed_trail_index = len(position_trail)
+        print("Loaded initial state from DB.")
+    except Exception as e:
+        print(f"[WARN] Failed to load initial state from DB: {e}")
 
 
 def rssi_to_distance(rssi):
@@ -138,6 +161,7 @@ def post_reading():
     if rssi is None:
         return jsonify({"error": "missing rssi (is rssi=True set on the anchor's LoRa node?)"}), 400
 
+    global last_flushed_trail_index
     with state_lock:
         s = anchor_state.setdefault(anchor_id, {"history": []})
         s["history"].append(rssi)
@@ -146,7 +170,25 @@ def post_reading():
         avg_rssi = sum(s["history"]) / len(s["history"])
         distance = rssi_to_distance(avg_rssi)
 
-    db.upsert_anchor_reading(anchor_id, avg_rssi, distance, timestamp)
+        s["avg_rssi"] = avg_rssi
+        s["distance"] = distance
+        s["last_seen"] = timestamp
+
+        # Compute usable points for trilateration
+        usable_points = []
+        for a_id, pos in ANCHORS.items():
+            a_s = anchor_state.get(a_id)
+            if a_s and a_s.get("last_seen"):
+                if timestamp - a_s["last_seen"] <= READING_MAX_AGE and a_s.get("distance") is not None:
+                    usable_points.append((pos["x"], pos["y"], a_s["distance"]))
+        
+        if len(usable_points) >= 3:
+            result = trilaterate(usable_points)
+            if result:
+                position_trail.append({"x": result[0], "y": result[1], "t": timestamp})
+                if len(position_trail) > MAX_TRAIL:
+                    position_trail.pop(0)
+                    last_flushed_trail_index = max(0, last_flushed_trail_index - 1)
 
     # Compute latest state and push to clients
     state_payload = _compute_state_payload(timestamp)
@@ -159,40 +201,37 @@ def _compute_state_payload(now):
     anchors_out = []
     usable_points = []
     
-    db_readings = db.get_all_anchor_readings()
-    readings_map = {r["anchor_id"]: r for r in db_readings}
+    with state_lock:
+        for anchor_id, pos in ANCHORS.items():
+            r = anchor_state.get(anchor_id)
+            entry = {
+                "id": anchor_id,
+                "x": pos["x"],
+                "y": pos["y"],
+                "rssi": None,
+                "distance": None,
+                "age": None,
+                "stale": True,
+            }
+            if r and r.get("last_seen"):
+                age = now - r["last_seen"]
+                entry["rssi"] = r.get("avg_rssi")
+                entry["distance"] = r.get("distance")
+                entry["age"] = round(age, 1)
+                entry["stale"] = age > READING_MAX_AGE
 
-    for anchor_id, pos in ANCHORS.items():
-        r = readings_map.get(anchor_id)
-        entry = {
-            "id": anchor_id,
-            "x": pos["x"],
-            "y": pos["y"],
-            "rssi": None,
-            "distance": None,
-            "age": None,
-            "stale": True,
-        }
-        if r:
-            age = now - r["last_seen"]
-            entry["rssi"] = r.get("rssi")
-            entry["distance"] = r.get("distance")
-            entry["age"] = round(age, 1)
-            entry["stale"] = age > READING_MAX_AGE
+                if not entry["stale"] and entry["distance"] is not None:
+                    usable_points.append((pos["x"], pos["y"], entry["distance"]))
 
-            if not entry["stale"] and entry["distance"] is not None:
-                usable_points.append((pos["x"], pos["y"], entry["distance"]))
+            anchors_out.append(entry)
 
-        anchors_out.append(entry)
+        position = None
+        if len(usable_points) >= 3:
+            result = trilaterate(usable_points)
+            if result:
+                position = {"x": result[0], "y": result[1]}
 
-    position = None
-    if len(usable_points) >= 3:
-        result = trilaterate(usable_points)
-        if result:
-            position = {"x": result[0], "y": result[1]}
-            db.insert_position(result[0], result[1], now)
-
-    trail = db.get_recent_trail(limit=MAX_TRAIL)
+        trail = list(position_trail)
 
     return {
         "anchors": anchors_out,
@@ -201,6 +240,41 @@ def _compute_state_payload(now):
         "usable_anchor_count": len(usable_points),
         "server_time": now,
     }
+
+def periodic_db_flush():
+    global last_flushed_trail_index
+    while True:
+        time.sleep(DB_FLUSH_INTERVAL)
+        
+        with state_lock:
+            # Copy state to flush
+            anchors_to_flush = []
+            for a_id, s in anchor_state.items():
+                if "avg_rssi" in s:
+                    anchors_to_flush.append((a_id, s["avg_rssi"], s["distance"], s["last_seen"]))
+            
+            trail_to_flush = position_trail[last_flushed_trail_index:]
+            num_flushed = len(trail_to_flush)
+        
+        if not anchors_to_flush and not trail_to_flush:
+            continue
+            
+        try:
+            # Perform DB I/O outside the lock
+            for a in anchors_to_flush:
+                db.upsert_anchor_reading(a[0], a[1], a[2], a[3])
+            
+            for t in trail_to_flush:
+                db.insert_position(t["x"], t["y"], t["t"])
+            
+            with state_lock:
+                # Only advance the index on success. 
+                # If pop(0) happened during I/O, last_flushed_trail_index was already shifted back.
+                # So we just advance it by what we successfully wrote.
+                last_flushed_trail_index += num_flushed
+                
+        except Exception as e:
+            print(f"[WARN] DB flush failed: {e}")
 
 @app.route("/api/state")
 def get_state():
@@ -221,5 +295,9 @@ if __name__ == "__main__":
     print("=" * 60)
     
     db.init_db()
+    load_state_from_db()
+    
+    threading.Thread(target=periodic_db_flush, daemon=True).start()
+    
     port = int(os.environ.get("PORT", 5000))
     socketio.run(app, host="0.0.0.0", port=port, debug=False)
