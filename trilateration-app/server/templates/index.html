@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RF Trilateration — Live</title>
+<style>
+  :root {
+    --bg: #0a0e0c;
+    --bg-panel: #0f1512;
+    --grid-line: #1a2620;
+    --phosphor: #5eff9b;
+    --phosphor-dim: #2e7a52;
+    --phosphor-bright: #b8ffd4;
+    --amber: #ffb454;
+    --red: #ff5d5d;
+    --ink: #c9e8d6;
+    --ink-dim: #5d7a6c;
+    --mono: "JetBrains Mono", "SF Mono", "Courier New", monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--mono);
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(94,255,155,0.04), transparent 60%);
+  }
+
+  .topbar {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 18px 28px 14px;
+    border-bottom: 1px solid var(--grid-line);
+  }
+
+  .topbar h1 {
+    font-size: 15px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 0;
+    color: var(--phosphor-bright);
+    font-weight: 600;
+  }
+
+  .topbar h1 span {
+    color: var(--ink-dim);
+    font-weight: 400;
+    margin-left: 10px;
+    font-size: 12px;
+    letter-spacing: 0.05em;
+  }
+
+  .status-pill {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border: 1px solid var(--phosphor-dim);
+    border-radius: 2px;
+    color: var(--phosphor);
+  }
+  .status-pill.bad { color: var(--red); border-color: var(--red); }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 1px;
+    background: var(--grid-line);
+  }
+
+  @media (max-width: 880px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    padding: 20px 24px;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    margin: 0 0 14px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ---- radar / scope panel ---- */
+  #scope-wrap { position: relative; }
+  #scope { width: 100%; height: auto; display: block; }
+
+  .scope-readout {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    font-size: 11px;
+    color: var(--phosphor-dim);
+    line-height: 1.6;
+  }
+  .scope-readout b { color: var(--phosphor-bright); font-weight: 600; }
+
+  /* ---- anchor list ---- */
+  .anchor-row {
+    border: 1px solid var(--grid-line);
+    border-radius: 2px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2px 12px;
+    align-items: center;
+  }
+
+  .anchor-id {
+    font-size: 13px;
+    color: var(--phosphor-bright);
+    font-weight: 600;
+    letter-spacing: 0.03em;
+  }
+  .anchor-id .dot {
+    display: inline-block;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--phosphor);
+    margin-right: 8px;
+    box-shadow: 0 0 6px var(--phosphor);
+  }
+  .anchor-row.stale .anchor-id .dot {
+    background: var(--ink-dim);
+    box-shadow: none;
+  }
+  .anchor-row.stale { opacity: 0.45; }
+
+  .anchor-meta {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    color: var(--ink-dim);
+    display: flex;
+    gap: 16px;
+  }
+  .anchor-meta b { color: var(--ink); font-weight: 600; }
+
+  .signal-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 16px;
+  }
+  .signal-bars i {
+    display: block;
+    width: 4px;
+    background: var(--grid-line);
+    border-radius: 1px;
+  }
+  .signal-bars i.lit { background: var(--phosphor); }
+  .signal-bars i:nth-child(1) { height: 25%; }
+  .signal-bars i:nth-child(2) { height: 50%; }
+  .signal-bars i:nth-child(3) { height: 70%; }
+  .signal-bars i:nth-child(4) { height: 85%; }
+  .signal-bars i:nth-child(5) { height: 100%; }
+
+  .legend {
+    font-size: 10px;
+    color: var(--ink-dim);
+    margin-top: 14px;
+    line-height: 1.8;
+    border-top: 1px solid var(--grid-line);
+    padding-top: 12px;
+  }
+  .legend .swatch {
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+</style>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+</head>
+<body>
+
+  <div class="topbar">
+    <h1>RF Trilateration <span id="anchor-count">— 0 anchors configured</span></h1>
+    <div class="status-pill" id="status-pill">connecting…</div>
+  </div>
+
+  <div class="layout">
+    <div class="panel" id="scope-wrap">
+      <p class="panel-title">
+        <span>position scope</span>
+        <span id="fix-state">no fix</span>
+      </p>
+      <svg id="scope" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg"></svg>
+      <div class="scope-readout" id="scope-readout"></div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title">
+        <span>anchors</span>
+        <span id="usable-count">0 / 0 usable</span>
+      </p>
+      <div id="anchor-list"></div>
+
+      <div class="legend">
+        <div><span class="swatch" style="background:var(--phosphor);box-shadow:0 0 6px var(--phosphor)"></span>fixed anchor, recent reading</div>
+        <div><span class="swatch" style="background:var(--ink-dim)"></span>anchor stale / no signal</div>
+        <div><span class="swatch" style="background:var(--amber)"></span>estimated tourist position</div>
+        <div style="margin-top:8px; color:var(--ink-dim)">
+          Dashed rings show each anchor's estimated distance to the tourist node, based on its RSSI reading. If the rings don't overlap near one point, the RSSI&rarr;distance calibration likely needs adjustment.
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const SVG_NS = "http://www.w3.org/2000/svg";
+const scope = document.getElementById("scope");
+const VIEW = 600;
+const PADDING = 60;
+
+let worldBounds = null; // {minX, maxX, minY, maxY} computed from anchors
+
+function el(tag, attrs) {
+  const e = document.createElementNS(SVG_NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+function computeBounds(anchors) {
+  if (!anchors.length) return {minX:-10, maxX:10, minY:-10, maxY:10};
+  let xs = anchors.map(a => a.x), ys = anchors.map(a => a.y);
+  let minX = Math.min(...xs), maxX = Math.max(...xs);
+  let minY = Math.min(...ys), maxY = Math.max(...ys);
+  const padX = Math.max((maxX - minX) * 0.4, 5);
+  const padY = Math.max((maxY - minY) * 0.4, 5);
+  return {minX: minX - padX, maxX: maxX + padX, minY: minY - padY, maxY: maxY + padY};
+}
+
+function worldToScreen(x, y, b) {
+  const sx = PADDING + ((x - b.minX) / (b.maxX - b.minX)) * (VIEW - 2*PADDING);
+  const sy = VIEW - PADDING - ((y - b.minY) / (b.maxY - b.minY)) * (VIEW - 2*PADDING);
+  return [sx, sy];
+}
+
+function metersToPixels(meters, b) {
+  return (meters / (b.maxX - b.minX)) * (VIEW - 2*PADDING);
+}
+
+function drawGrid(b) {
+  const g = el("g", {});
+  const step = 5; // meters
+  const startX = Math.floor(b.minX / step) * step;
+  const startY = Math.floor(b.minY / step) * step;
+  for (let x = startX; x <= b.maxX; x += step) {
+    const [sx1] = worldToScreen(x, b.minY, b);
+    const [sx2] = worldToScreen(x, b.maxY, b);
+    g.appendChild(el("line", {x1: sx1, y1: worldToScreen(x,b.maxY,b)[1], x2: sx2, y2: worldToScreen(x,b.minY,b)[1], stroke: "var(--grid-line)", "stroke-width": 1}));
+  }
+  for (let y = startY; y <= b.maxY; y += step) {
+    const [,sy1] = worldToScreen(b.minX, y, b);
+    g.appendChild(el("line", {x1: worldToScreen(b.minX,y,b)[0], y1: sy1, x2: worldToScreen(b.maxX,y,b)[0], y2: sy1, stroke: "var(--grid-line)", "stroke-width": 1}));
+  }
+  return g;
+}
+
+function render(state) {
+  scope.innerHTML = "";
+  const anchors = state.anchors;
+  worldBounds = computeBounds(anchors);
+  const b = worldBounds;
+
+  scope.appendChild(drawGrid(b));
+
+  // distance rings (dashed) for anchors with a usable reading
+  anchors.forEach(a => {
+    if (a.distance && !a.stale) {
+      const [cx, cy] = worldToScreen(a.x, a.y, b);
+      const r = metersToPixels(a.distance, b);
+      scope.appendChild(el("circle", {
+        cx, cy, r,
+        fill: "none",
+        stroke: "var(--phosphor-dim)",
+        "stroke-width": 1,
+        "stroke-dasharray": "4 5",
+        opacity: 0.7
+      }));
+    }
+  });
+
+  // trail
+  if (state.trail && state.trail.length > 1) {
+    let pts = state.trail.map(p => worldToScreen(p.x, p.y, b).join(",")).join(" ");
+    scope.appendChild(el("polyline", {
+      points: pts, fill: "none", stroke: "var(--amber)", "stroke-width": 1, opacity: 0.35
+    }));
+  }
+
+  // anchors
+  anchors.forEach(a => {
+    const [sx, sy] = worldToScreen(a.x, a.y, b);
+    const color = a.stale ? "var(--ink-dim)" : "var(--phosphor)";
+    scope.appendChild(el("circle", {cx: sx, cy: sy, r: 6, fill: "var(--bg)", stroke: color, "stroke-width": 2}));
+    scope.appendChild(el("circle", {cx: sx, cy: sy, r: 2, fill: color}));
+    const label = el("text", {x: sx + 10, y: sy - 8, fill: color, "font-size": 11, "font-family": "var(--mono)"});
+    label.textContent = a.id;
+    scope.appendChild(label);
+  });
+
+  // estimated position
+  if (state.position) {
+    const [sx, sy] = worldToScreen(state.position.x, state.position.y, b);
+    const pulse = el("circle", {cx: sx, cy: sy, r: 14, fill: "none", stroke: "var(--amber)", "stroke-width": 1, opacity: 0.5});
+    scope.appendChild(pulse);
+    scope.appendChild(el("circle", {cx: sx, cy: sy, r: 7, fill: "var(--amber)", opacity: 0.25}));
+    scope.appendChild(el("circle", {cx: sx, cy: sy, r: 4, fill: "var(--amber)"}));
+    document.getElementById("fix-state").textContent = "fix acquired";
+    document.getElementById("fix-state").style.color = "var(--phosphor)";
+    document.getElementById("scope-readout").innerHTML =
+      `x = <b>${state.position.x.toFixed(2)}</b> m &nbsp;&nbsp; y = <b>${state.position.y.toFixed(2)}</b> m`;
+  } else {
+    document.getElementById("fix-state").textContent = `no fix — need 3+ anchors (${state.usable_anchor_count} usable)`;
+    document.getElementById("fix-state").style.color = "var(--red)";
+    document.getElementById("scope-readout").innerHTML = "";
+  }
+}
+
+function signalBars(rssi) {
+  // rough scale: -90 (weak) to -40 (strong)
+  let lit = 0;
+  if (rssi !== null && rssi !== undefined) {
+    if (rssi > -50) lit = 5;
+    else if (rssi > -60) lit = 4;
+    else if (rssi > -70) lit = 3;
+    else if (rssi > -80) lit = 2;
+    else lit = 1;
+  }
+  let html = "";
+  for (let i = 0; i < 5; i++) html += `<i class="${i < lit ? 'lit' : ''}"></i>`;
+  return html;
+}
+
+function renderAnchorList(state) {
+  const list = document.getElementById("anchor-list");
+  list.innerHTML = "";
+  state.anchors.forEach(a => {
+    const row = document.createElement("div");
+    row.className = "anchor-row" + (a.stale ? " stale" : "");
+    row.innerHTML = `
+      <div class="anchor-id"><span class="dot"></span>${a.id}</div>
+      <div class="signal-bars">${signalBars(a.rssi)}</div>
+      <div class="anchor-meta">
+        <span>rssi <b>${a.rssi !== null && a.rssi !== undefined ? a.rssi.toFixed(0) + ' dBm' : '—'}</b></span>
+        <span>dist <b>${a.distance !== null && a.distance !== undefined ? a.distance.toFixed(1) + ' m' : '—'}</b></span>
+        <span>age <b>${a.age !== null && a.age !== undefined ? a.age + 's' : '—'}</b></span>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+  document.getElementById("anchor-count").textContent = `— ${state.anchors.length} anchors configured`;
+  document.getElementById("usable-count").textContent = `${state.usable_anchor_count} / ${state.anchors.length} usable`;
+}
+
+async function fetchInitialState() {
+  try {
+    const res = await fetch("/api/state");
+    const state = await res.json();
+    render(state);
+    renderAnchorList(state);
+  } catch (e) {
+    console.error("Failed to fetch initial state:", e);
+  }
+}
+
+const socket = io();
+
+socket.on("connect", () => {
+  const pill = document.getElementById("status-pill");
+  pill.textContent = "live";
+  pill.classList.remove("bad");
+});
+
+socket.on("disconnect", () => {
+  const pill = document.getElementById("status-pill");
+  pill.textContent = "server unreachable";
+  pill.classList.add("bad");
+});
+
+socket.on("state_update", (state) => {
+  render(state);
+  renderAnchorList(state);
+});
+
+fetchInitialState();
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+flask
+flask-socketio
+eventlet
+numpy
+scipy
+requests
+psycopg2-binary
