@@ -161,7 +161,6 @@ def post_reading():
     if rssi is None:
         return jsonify({"error": "missing rssi (is rssi=True set on the anchor's LoRa node?)"}), 400
 
-    global last_flushed_trail_index
     with state_lock:
         s = anchor_state.setdefault(anchor_id, {"history": []})
         s["history"].append(rssi)
@@ -186,9 +185,6 @@ def post_reading():
             result = trilaterate(usable_points)
             if result:
                 position_trail.append({"x": result[0], "y": result[1], "t": timestamp})
-                if len(position_trail) > MAX_TRAIL:
-                    position_trail.pop(0)
-                    last_flushed_trail_index = max(0, last_flushed_trail_index - 1)
 
     # Compute latest state and push to clients
     state_payload = _compute_state_payload(timestamp)
@@ -231,7 +227,7 @@ def _compute_state_payload(now):
             if result:
                 position = {"x": result[0], "y": result[1]}
 
-        trail = list(position_trail)
+        trail = list(position_trail[-MAX_TRAIL:])
 
     return {
         "anchors": anchors_out,
@@ -269,9 +265,11 @@ def periodic_db_flush():
             
             with state_lock:
                 # Only advance the index on success. 
-                # If pop(0) happened during I/O, last_flushed_trail_index was already shifted back.
-                # So we just advance it by what we successfully wrote.
                 last_flushed_trail_index += num_flushed
+                if len(position_trail) > MAX_TRAIL:
+                    overflow = len(position_trail) - MAX_TRAIL
+                    del position_trail[:overflow]
+                    last_flushed_trail_index = max(0, last_flushed_trail_index - overflow)
                 
         except Exception as e:
             print(f"[WARN] DB flush failed: {e}")
