@@ -378,6 +378,72 @@ def post_reading():
     return jsonify({"ok": True})
 
 
+@app.route("/health")
+@app.route("/api/health")
+def health_check():
+    return jsonify({"status": "ok", "time": time.time()})
+
+
+@app.route("/api/system/settings")
+def system_settings():
+    return jsonify({"data": {"gps_reference": GPS_REFERENCE, "anchors": ANCHORS}})
+
+
+@app.route("/api/location/update", methods=["POST"])
+def update_location():
+    global current_tourist_id
+    data = request.get_json(force=True)
+    device_id = data.get("device_id", "DEV001").upper()
+    x = float(data.get("x", 0.0))
+    y = float(data.get("y", 0.0))
+    rssi = data.get("rssi", -60)
+    sos_flag = bool(data.get("sos_flag", False))
+    timestamp = float(data.get("timestamp", time.time()))
+
+    with state_lock:
+        current_tourist_id = device_id
+        if sos_flag:
+            record_sos(device_id, timestamp)
+
+        sx, sy = kalman_tracker.update(x, y, timestamp)
+        position_trail.append({
+            "x": sx,
+            "y": sy,
+            "t": timestamp,
+            "tourist_id": device_id,
+            "sos_flag": sos_flag,
+        })
+
+    state_payload = _build_state_payload(time.time())
+    socketio.emit("state_update", state_payload)
+    return jsonify({"status": "success", "device_id": device_id})
+
+
+@app.route("/api/gateway/batch-update", methods=["POST"])
+def batch_update_location():
+    data = request.get_json(force=True)
+    locations = data.get("locations", [])
+    processed = 0
+    for loc in locations:
+        device_id = loc.get("device_id", "DEV001").upper()
+        x = float(loc.get("x", 0.0))
+        y = float(loc.get("y", 0.0))
+        sos_flag = bool(loc.get("sos_flag", False))
+        ts = float(loc.get("timestamp", time.time()))
+        with state_lock:
+            if sos_flag:
+                record_sos(device_id, ts)
+            position_trail.append({
+                "x": x,
+                "y": y,
+                "t": ts,
+                "tourist_id": device_id,
+                "sos_flag": sos_flag,
+            })
+        processed += 1
+    return jsonify({"data": {"processed": processed, "failed": 0}})
+
+
 @app.route("/api/sos", methods=["GET"])
 def get_sos():
     """Return currently active SOS alerts."""
@@ -403,9 +469,10 @@ master_heartbeats = {}   # anchor_id → {timestamp, stats}
 
 
 @app.route("/api/heartbeat", methods=["POST"])
+@app.route("/api/gateway/heartbeat", methods=["POST"])
 def post_heartbeat():
     """
-    Called by the master_node.py every 60 seconds.
+    Called by master_node.py or MasterNode gateway.
     Lets the dashboard know the field gateway is still alive.
     """
     data      = request.get_json(force=True)
@@ -417,9 +484,7 @@ def post_heartbeat():
     }
     print(
         f"[HB] Master '{anchor_id}' heartbeat — "
-        f"sessions={data.get('sessions','?')} "
-        f"sent={data.get('sent','?')} "
-        f"buffered={data.get('buffered','?')}"
+        f"stats={data}"
     )
     return jsonify({"ok": True, "server_time": now})
 
