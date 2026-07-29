@@ -1,0 +1,26 @@
+{
+    "MASTER": {
+        "id": "node_master",
+        "x": 0.0,
+        "y": 0.0,
+        "role": "master",
+        "gps_lat": 53.03016648,
+        "gps_lng": -128.61710038
+    },
+    "ANCHOR_2": {
+        "id": "node_relay_1",
+        "x": 2.0,
+        "y": -4.0,
+        "role": "relay",
+        "gps_lat": 53.03013055,
+        "gps_lng": -128.6170705
+    },
+    "ANCHOR_3": {
+        "id": "node_relay_2",
+        "x": 4.99,
+        "y": 0.0,
+        "role": "relay",
+        "gps_lat": 53.03016648,
+        "gps_lng": -128.61702569
+    }
+}
