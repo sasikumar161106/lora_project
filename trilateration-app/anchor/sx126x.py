@@ -93,17 +93,44 @@ class sx126x:
         self.serial_n = serial_num
         self.power = power
         # Initial the GPIO for M0 and M1 Pin
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)
-        GPIO.setup(self.M0,GPIO.OUT)
-        GPIO.setup(self.M1,GPIO.OUT)
-        GPIO.output(self.M0,GPIO.LOW)
-        GPIO.output(self.M1,GPIO.HIGH)
+        self.use_lgpio = False
+        try:
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setwarnings(False)
+            GPIO.setup(self.M0, GPIO.OUT)
+            GPIO.setup(self.M1, GPIO.OUT)
+            GPIO.output(self.M0, GPIO.LOW)
+            GPIO.output(self.M1, GPIO.HIGH)
+        except Exception as e:
+            try:
+                import lgpio
+                self.use_lgpio = True
+                self.chip = lgpio.gpiochip_open(0)
+                lgpio.gpio_claim_output(self.chip, self.M0, 0)
+                lgpio.gpio_claim_output(self.chip, self.M1, 1)
+            except Exception as e2:
+                print(f"GPIO Init warning: {e} / {e2}")
 
         # The hardware UART of Pi3B+,Pi4B is /dev/ttyS0
         self.ser = serial.Serial(serial_num,9600)
         self.ser.flushInput()
         self.set(freq,addr,power,rssi,air_speed,net_id,buffer_size,crypt,relay,lbt,wor)
+
+    def _set_gpio(self, pin, val):
+        if getattr(self, 'use_lgpio', False):
+            import lgpio
+            level = 1 if val else 0
+            lgpio.gpio_write(self.chip, pin, level)
+        else:
+            try:
+                GPIO.output(pin, val)
+            except Exception:
+                import lgpio
+                if not hasattr(self, 'chip'):
+                    self.chip = lgpio.gpiochip_open(0)
+                self.use_lgpio = True
+                level = 1 if val else 0
+                lgpio.gpio_write(self.chip, pin, level)
 
     def set(self,freq,addr,power,rssi,air_speed=2400,\
             net_id=0,buffer_size = 240,crypt=0,\
@@ -185,8 +212,9 @@ class sx126x:
             self.cfg_reg[10] = h_crypt
             self.cfg_reg[11] = l_crypt
 
-        GPIO.output(self.M1,GPIO.HIGH)
-        GPIO.output(self.M0,GPIO.LOW)
+        # Switch to Configuration Mode (M0=1, M1=1)
+        self._set_gpio(self.M0, True)
+        self._set_gpio(self.M1, True)
         time.sleep(0.1)
         self.ser.flushInput()
 
@@ -206,12 +234,14 @@ class sx126x:
             else:
                 pass
 
-        GPIO.output(self.M1,GPIO.LOW)
+        # Switch to Normal Mode (M0=0, M1=0)
+        self._set_gpio(self.M0, False)
+        self._set_gpio(self.M1, False)
         time.sleep(0.1)
 
     def send(self,data):
-        GPIO.output(self.M1,GPIO.LOW)
-        GPIO.output(self.M0,GPIO.LOW)
+        self._set_gpio(self.M1, False)
+        self._set_gpio(self.M0, False)
         time.sleep(0.1)
 
         self.ser.write(data)
@@ -255,8 +285,8 @@ class sx126x:
         return None, None
 
     def get_channel_rssi(self):
-        GPIO.output(self.M1,GPIO.LOW)
-        GPIO.output(self.M0,GPIO.LOW)
+        self._set_gpio(self.M1, False)
+        self._set_gpio(self.M0, False)
         time.sleep(0.1)
         self.ser.flushInput()
         self.ser.write(bytes([0xC0,0xC1,0xC2,0xC3,0x00,0x02]))

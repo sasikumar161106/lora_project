@@ -3,402 +3,966 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>RF Trilateration — Live</title>
-<style>
-  :root {
-    --bg: #0a0e0c;
-    --bg-panel: #0f1512;
-    --grid-line: #1a2620;
-    --phosphor: #5eff9b;
-    --phosphor-dim: #2e7a52;
-    --phosphor-bright: #b8ffd4;
-    --amber: #ffb454;
-    --red: #ff5d5d;
-    --ink: #c9e8d6;
-    --ink-dim: #5d7a6c;
-    --mono: "JetBrains Mono", "SF Mono", "Courier New", monospace;
-  }
-
-  * { box-sizing: border-box; }
-
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--ink);
-    font-family: var(--mono);
-    min-height: 100vh;
-    background-image:
-      radial-gradient(circle at 50% 0%, rgba(94,255,155,0.04), transparent 60%);
-  }
-
-  .topbar {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    padding: 18px 28px 14px;
-    border-bottom: 1px solid var(--grid-line);
-  }
-
-  .topbar h1 {
-    font-size: 15px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    margin: 0;
-    color: var(--phosphor-bright);
-    font-weight: 600;
-  }
-
-  .topbar h1 span {
-    color: var(--ink-dim);
-    font-weight: 400;
-    margin-left: 10px;
-    font-size: 12px;
-    letter-spacing: 0.05em;
-  }
-
-  .status-pill {
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 4px 10px;
-    border: 1px solid var(--phosphor-dim);
-    border-radius: 2px;
-    color: var(--phosphor);
-  }
-  .status-pill.bad { color: var(--red); border-color: var(--red); }
-
-  .layout {
-    display: grid;
-    grid-template-columns: 1fr 360px;
-    gap: 1px;
-    background: var(--grid-line);
-  }
-
-  @media (max-width: 880px) {
-    .layout { grid-template-columns: 1fr; }
-  }
-
-  .panel {
-    background: var(--bg-panel);
-    padding: 20px 24px;
-  }
-
-  .panel-title {
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--ink-dim);
-    margin: 0 0 14px;
-    display: flex;
-    justify-content: space-between;
-  }
-
-  /* ---- radar / scope panel ---- */
-  #scope-wrap { position: relative; }
-  #scope { width: 100%; height: auto; display: block; }
-
-  .scope-readout {
-    position: absolute;
-    bottom: 16px;
-    left: 16px;
-    font-size: 11px;
-    color: var(--phosphor-dim);
-    line-height: 1.6;
-  }
-  .scope-readout b { color: var(--phosphor-bright); font-weight: 600; }
-
-  /* ---- anchor list ---- */
-  .anchor-row {
-    border: 1px solid var(--grid-line);
-    border-radius: 2px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 2px 12px;
-    align-items: center;
-  }
-
-  .anchor-id {
-    font-size: 13px;
-    color: var(--phosphor-bright);
-    font-weight: 600;
-    letter-spacing: 0.03em;
-  }
-  .anchor-id .dot {
-    display: inline-block;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--phosphor);
-    margin-right: 8px;
-    box-shadow: 0 0 6px var(--phosphor);
-  }
-  .anchor-row.stale .anchor-id .dot {
-    background: var(--ink-dim);
-    box-shadow: none;
-  }
-  .anchor-row.stale { opacity: 0.45; }
-
-  .anchor-meta {
-    grid-column: 1 / -1;
-    font-size: 11px;
-    color: var(--ink-dim);
-    display: flex;
-    gap: 16px;
-  }
-  .anchor-meta b { color: var(--ink); font-weight: 600; }
-
-  .signal-bars {
-    display: flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 16px;
-  }
-  .signal-bars i {
-    display: block;
-    width: 4px;
-    background: var(--grid-line);
-    border-radius: 1px;
-  }
-  .signal-bars i.lit { background: var(--phosphor); }
-  .signal-bars i:nth-child(1) { height: 25%; }
-  .signal-bars i:nth-child(2) { height: 50%; }
-  .signal-bars i:nth-child(3) { height: 70%; }
-  .signal-bars i:nth-child(4) { height: 85%; }
-  .signal-bars i:nth-child(5) { height: 100%; }
-
-  .legend {
-    font-size: 10px;
-    color: var(--ink-dim);
-    margin-top: 14px;
-    line-height: 1.8;
-    border-top: 1px solid var(--grid-line);
-    padding-top: 12px;
-  }
-  .legend .swatch {
-    display: inline-block;
-    width: 8px; height: 8px;
-    border-radius: 50%;
-    margin-right: 6px;
-    vertical-align: middle;
-  }
-</style>
+<title>Tourist Safety System — Offline GPS Tracking</title>
+<meta name="description" content="Real-time tourist safety monitoring via LoRa RSSI trilateration. Offline GPS tracking with SOS alerts.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+/* ════════════════════════════════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════════════════════════════ */
+:root {
+  --bg:           #080d0b;
+  --bg-panel:     #0d1410;
+  --bg-card:      #111a15;
+  --grid-line:    #162018;
+  --border:       #1e2e25;
+
+  --phosphor:       #3dff8f;
+  --phosphor-dim:   #1a7040;
+  --phosphor-glow:  rgba(61,255,143,.18);
+  --phosphor-bright:#afffcf;
+
+  --amber:    #ffb347;
+  --amber-dim:#7a4e10;
+
+  --danger:   #ff3d5a;
+  --danger-bg:rgba(255,61,90,.12);
+  --danger-glow:rgba(255,61,90,.35);
+
+  --ink:      #cce8d8;
+  --ink-dim:  #4a6b58;
+  --ink-faint:#2a3d32;
+
+  --mono: "JetBrains Mono", "SF Mono", monospace;
+  --sans: "Inter", system-ui, sans-serif;
+
+  --radius: 6px;
+  --panel-pad: 22px 26px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RESET & BASE
+═══════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(ellipse 80% 40% at 50% 0%, rgba(61,255,143,.05) 0%, transparent 60%);
+  overflow-x: hidden;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   SOS ALERT BANNER (top of page, pulses when active)
+═══════════════════════════════════════════════════════════════ */
+#sos-banner {
+  display: none;
+  width: 100%;
+  background: var(--danger-bg);
+  border-bottom: 2px solid var(--danger);
+  padding: 0 28px;
+  height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  animation: sos-pulse 1.2s ease-in-out infinite;
+  position: relative;
+  z-index: 100;
+}
+#sos-banner.active { display: flex; }
+
+@keyframes sos-pulse {
+  0%,100% { background: var(--danger-bg); box-shadow: 0 0 0 rgba(255,61,90,0); }
+  50%      { background: rgba(255,61,90,.22); box-shadow: 0 2px 32px var(--danger-glow); }
+}
+
+.sos-icon {
+  font-size: 22px;
+  animation: sos-icon-flash 0.7s step-start infinite;
+}
+@keyframes sos-icon-flash { 0%,100%{opacity:1} 50%{opacity:0} }
+
+.sos-text {
+  flex: 1;
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--danger);
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.sos-tourists {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: #ff8fa3;
+  letter-spacing: .06em;
+}
+.sos-dismiss {
+  background: none;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  color: var(--danger);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 12px;
+  cursor: pointer;
+  letter-spacing: .06em;
+  transition: background .15s;
+}
+.sos-dismiss:hover { background: rgba(255,61,90,.18); }
+
+/* ════════════════════════════════════════════════════════════════
+   TOP BAR
+═══════════════════════════════════════════════════════════════ */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 28px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.topbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.topbar-title {
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--phosphor-bright);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.topbar-title .sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-dim);
+  text-transform: none;
+  margin-left: 10px;
+  letter-spacing: .04em;
+}
+
+.topbar-badges {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 4px 11px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--ink-dim);
+}
+.badge.online  { color: var(--phosphor); border-color: var(--phosphor-dim); }
+.badge.offline { color: var(--danger);   border-color: var(--danger); }
+.badge.tracking { color: var(--amber); border-color: var(--amber-dim); }
+
+/* ════════════════════════════════════════════════════════════════
+   LAYOUT GRID
+═══════════════════════════════════════════════════════════════ */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  grid-template-rows: 1fr;
+  gap: 1px;
+  background: var(--border);
+  min-height: calc(100vh - 120px);
+}
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: var(--bg-panel);
+  padding: var(--panel-pad);
+  overflow: hidden;
+}
+
+.panel-title {
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.panel-title .right { color: var(--phosphor-dim); }
+
+/* ════════════════════════════════════════════════════════════════
+   SCOPE (SVG radar canvas)
+═══════════════════════════════════════════════════════════════ */
+#scope-wrap { position: relative; }
+#scope { width: 100%; height: auto; display: block; }
+
+.scope-readout {
+  position: absolute;
+  bottom: 18px;
+  left: 20px;
+  background: rgba(8,13,11,.85);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  min-width: 220px;
+  line-height: 1.9;
+  backdrop-filter: blur(6px);
+}
+.scope-readout .label { color: var(--ink-dim); font-size: 11px; }
+.scope-readout .val   { color: var(--phosphor-bright); font-size: 13px; font-weight: 600; }
+.scope-readout .gps-val { color: var(--amber); font-size: 12px; font-weight: 600; }
+.scope-readout .sos-active-badge {
+  display: inline-block;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+  border-radius: 3px;
+  color: var(--danger);
+  font-size: 10px;
+  padding: 2px 8px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+.scope-readout .offline-gps-label {
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--amber-dim);
+  margin-bottom: 2px;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   RIGHT PANEL
+═══════════════════════════════════════════════════════════════ */
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--border);
+}
+
+/* ── anchor list ── */
+.anchors-section {
+  background: var(--bg-panel);
+  padding: var(--panel-pad);
+  flex: 0 0 auto;
+}
+
+.anchor-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  align-items: center;
+  transition: border-color .2s, opacity .2s;
+}
+.anchor-row.stale     { opacity: .35; }
+.anchor-row.sos-anchor{ border-color: var(--danger); }
+
+.anchor-id {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--phosphor-bright);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.anchor-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--phosphor);
+  box-shadow: 0 0 7px var(--phosphor);
+  flex-shrink: 0;
+  transition: background .2s, box-shadow .2s;
+}
+.stale .anchor-dot {
+  background: var(--ink-dim);
+  box-shadow: none;
+}
+.sos-anchor .anchor-dot {
+  background: var(--danger);
+  box-shadow: 0 0 10px var(--danger);
+  animation: dot-sos-flash .6s step-start infinite;
+}
+@keyframes dot-sos-flash { 50% { opacity: 0; } }
+
+.anchor-meta {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: var(--ink-dim);
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.anchor-meta b { color: var(--ink); font-weight: 600; }
+
+.signal-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 18px;
+}
+.signal-bars i {
+  display: block; width: 5px;
+  background: var(--border);
+  border-radius: 2px;
+  transition: background .2s;
+}
+.signal-bars i.lit { background: var(--phosphor); }
+.signal-bars i:nth-child(1){height:20%}
+.signal-bars i:nth-child(2){height:40%}
+.signal-bars i:nth-child(3){height:65%}
+.signal-bars i:nth-child(4){height:82%}
+.signal-bars i:nth-child(5){height:100%}
+
+/* ── SOS history section ── */
+.sos-section {
+  background: var(--bg-panel);
+  padding: var(--panel-pad);
+  flex: 1;
+  overflow-y: auto;
+}
+
+.sos-empty {
+  font-size: 11px;
+  color: var(--ink-faint);
+  text-align: center;
+  margin-top: 20px;
+}
+
+.sos-event-row {
+  border-left: 3px solid var(--danger);
+  background: var(--danger-bg);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  padding: 9px 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sos-event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sos-event-id {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--danger);
+  letter-spacing: .06em;
+}
+.sos-event-time {
+  font-size: 10px;
+  color: var(--ink-dim);
+}
+.sos-event-coords {
+  font-size: 10px;
+  color: #ff8fa3;
+  letter-spacing: .04em;
+}
+
+/* ── legend ── */
+.legend {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--ink-dim);
+  line-height: 2;
+}
+.legend-row { display: flex; align-items: center; gap: 8px; }
+.legend-swatch {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ANIMATIONS for tourist dot
+═══════════════════════════════════════════════════════════════ */
+@keyframes tourist-pulse {
+  0%   { r: 14; opacity: .6; }
+  100% { r: 28; opacity: 0;  }
+}
+.tourist-pulse-ring {
+  animation: tourist-pulse 1.5s ease-out infinite;
+}
+@keyframes tourist-sos-ring {
+  0%   { r: 16; opacity: .8; }
+  100% { r: 36; opacity: 0;  }
+}
+.tourist-sos-ring {
+  animation: tourist-sos-ring 0.9s ease-out infinite;
+}
+</style>
 </head>
 <body>
 
-  <div class="topbar">
-    <h1>RF Trilateration <span id="anchor-count">— 0 anchors configured</span></h1>
-    <div class="status-pill" id="status-pill">connecting…</div>
+<!-- ═══════ SOS ALERT BANNER ═══════ -->
+<div id="sos-banner" role="alert" aria-live="assertive">
+  <span class="sos-icon">🚨</span>
+  <span class="sos-text">SOS Alert Active</span>
+  <span class="sos-tourists" id="sos-banner-ids">—</span>
+  <button class="sos-dismiss" onclick="dismissSOS()">Acknowledge</button>
+</div>
+
+<!-- ═══════ TOP BAR ═══════ -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-title">
+      Tourist Safety System
+      <span class="sub" id="anchor-count">— 0 anchors</span>
+    </div>
+    <div style="font-size:10px;color:var(--ink-dim);letter-spacing:.08em;margin-top:1px;">
+      OFFLINE GPS · 865 MHz LoRa · India ISM Band
+    </div>
   </div>
 
-  <div class="layout">
-    <div class="panel" id="scope-wrap">
-      <p class="panel-title">
-        <span>position scope</span>
-        <span id="fix-state">no fix</span>
-      </p>
-      <svg id="scope" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg"></svg>
-      <div class="scope-readout" id="scope-readout"></div>
-    </div>
+  <div class="topbar-badges">
+    <span class="badge tracking" id="tourist-badge" style="display:none">
+      📍 <span id="tourist-id-display">—</span>
+    </span>
+    <span class="badge" id="status-pill">connecting…</span>
+  </div>
+</div>
 
-    <div class="panel">
+<!-- ═══════ MAIN LAYOUT ═══════ -->
+<div class="layout">
+
+  <!-- LEFT: scope / radar -->
+  <div class="panel" id="scope-wrap">
+    <p class="panel-title">
+      <span>Position Scope</span>
+      <span class="right" id="fix-state">no fix</span>
+    </p>
+    <svg id="scope" viewBox="0 0 620 620" xmlns="http://www.w3.org/2000/svg"></svg>
+
+    <!-- Readout overlay -->
+    <div class="scope-readout" id="scope-readout" style="display:none">
+      <div class="offline-gps-label">▲ Offline GPS (LoRa)</div>
+      <div>
+        <span class="label">Lat </span><span class="gps-val" id="ro-lat">—</span>
+      </div>
+      <div>
+        <span class="label">Lng </span><span class="gps-val" id="ro-lng">—</span>
+      </div>
+      <div style="margin-top:4px">
+        <span class="label">X </span><span class="val" id="ro-x">—</span>
+        <span class="label" style="margin-left:12px">Y </span><span class="val" id="ro-y">—</span>
+      </div>
+      <div>
+        <span class="label">Device </span><span class="val" id="ro-device">—</span>
+      </div>
+      <div id="ro-sos-badge" class="sos-active-badge" style="display:none">🚨 SOS Active</div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div class="right-panel">
+
+    <!-- Anchors -->
+    <div class="anchors-section">
       <p class="panel-title">
-        <span>anchors</span>
-        <span id="usable-count">0 / 0 usable</span>
+        <span>Anchor Nodes</span>
+        <span class="right" id="usable-count">0 / 0 usable</span>
       </p>
       <div id="anchor-list"></div>
 
       <div class="legend">
-        <div><span class="swatch" style="background:var(--phosphor);box-shadow:0 0 6px var(--phosphor)"></span>fixed anchor, recent reading</div>
-        <div><span class="swatch" style="background:var(--ink-dim)"></span>anchor stale / no signal</div>
-        <div><span class="swatch" style="background:var(--amber)"></span>estimated tourist position</div>
-        <div style="margin-top:8px; color:var(--ink-dim)">
-          Dashed rings show each anchor's estimated distance to the tourist node, based on its RSSI reading. If the rings don't overlap near one point, the RSSI&rarr;distance calibration likely needs adjustment.
+        <div class="legend-row">
+          <span class="legend-swatch" style="background:var(--phosphor);box-shadow:0 0 6px var(--phosphor)"></span>
+          Active anchor — recent RSSI reading
+        </div>
+        <div class="legend-row">
+          <span class="legend-swatch" style="background:var(--ink-dim)"></span>
+          Stale / no signal
+        </div>
+        <div class="legend-row">
+          <span class="legend-swatch" style="background:var(--amber)"></span>
+          Estimated tourist position
+        </div>
+        <div class="legend-row">
+          <span class="legend-swatch" style="background:var(--danger)"></span>
+          SOS — tourist in distress
+        </div>
+        <div style="margin-top:6px;color:var(--ink-faint);line-height:1.7">
+          Dashed rings = each anchor's estimated distance to tourist (RSSI→metres).
+          GPS is computed offline from anchor reference coordinates.
         </div>
       </div>
     </div>
-  </div>
 
+    <!-- SOS History -->
+    <div class="sos-section">
+      <p class="panel-title">
+        <span>SOS Event Log</span>
+        <span class="right" id="sos-count">0 events</span>
+      </p>
+      <div id="sos-list"><div class="sos-empty">No SOS events recorded.</div></div>
+    </div>
+
+  </div><!-- .right-panel -->
+</div><!-- .layout -->
+
+<!-- ═══════ JAVASCRIPT ═══════ -->
 <script>
-const SVG_NS = "http://www.w3.org/2000/svg";
-const scope = document.getElementById("scope");
-const VIEW = 600;
-const PADDING = 60;
+/* ══════════════════════════════════════════════════════════════
+   CONSTANTS & STATE
+══════════════════════════════════════════════════════════════ */
+const SVG_NS  = "http://www.w3.org/2000/svg";
+const scope   = document.getElementById("scope");
+const VIEW    = 620;
+const PADDING = 66;
 
-let worldBounds = null; // {minX, maxX, minY, maxY} computed from anchors
+let worldBounds = null;
+let sosDismissed = false;
+let sosEventLog  = [];   // local cache of SOS events for the log panel
 
-function el(tag, attrs) {
+
+/* ══════════════════════════════════════════════════════════════
+   SVG HELPERS
+══════════════════════════════════════════════════════════════ */
+function el(tag, attrs, cls) {
   const e = document.createElementNS(SVG_NS, tag);
   for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (cls) e.setAttribute("class", cls);
   return e;
 }
 
 function computeBounds(anchors) {
-  if (!anchors.length) return {minX:-10, maxX:10, minY:-10, maxY:10};
-  let xs = anchors.map(a => a.x), ys = anchors.map(a => a.y);
-  let minX = Math.min(...xs), maxX = Math.max(...xs);
-  let minY = Math.min(...ys), maxY = Math.max(...ys);
-  const padX = Math.max((maxX - minX) * 0.4, 5);
-  const padY = Math.max((maxY - minY) * 0.4, 5);
-  return {minX: minX - padX, maxX: maxX + padX, minY: minY - padY, maxY: maxY + padY};
+  if (!anchors.length)
+    return { minX: -8, maxX: 8, minY: -8, maxY: 8 };
+  const xs   = anchors.map(a => a.x);
+  const ys   = anchors.map(a => a.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const padX = Math.max((maxX - minX) * 0.45, 6);
+  const padY = Math.max((maxY - minY) * 0.45, 6);
+  return { minX: minX - padX, maxX: maxX + padX,
+           minY: minY - padY, maxY: maxY + padY };
 }
 
-function worldToScreen(x, y, b) {
+function w2s(x, y, b) {
   const sx = PADDING + ((x - b.minX) / (b.maxX - b.minX)) * (VIEW - 2*PADDING);
   const sy = VIEW - PADDING - ((y - b.minY) / (b.maxY - b.minY)) * (VIEW - 2*PADDING);
   return [sx, sy];
 }
-
-function metersToPixels(meters, b) {
-  return (meters / (b.maxX - b.minX)) * (VIEW - 2*PADDING);
+function m2p(metres, b) {
+  return (metres / (b.maxX - b.minX)) * (VIEW - 2*PADDING);
 }
 
+/* ══════════════════════════════════════════════════════════════
+   GRID DRAWING
+══════════════════════════════════════════════════════════════ */
 function drawGrid(b) {
-  const g = el("g", {});
-  const step = 5; // meters
+  const g    = el("g", {});
+  const step = chooseBestStep(b.maxX - b.minX);
+
   const startX = Math.floor(b.minX / step) * step;
   const startY = Math.floor(b.minY / step) * step;
-  for (let x = startX; x <= b.maxX; x += step) {
-    const [sx1] = worldToScreen(x, b.minY, b);
-    const [sx2] = worldToScreen(x, b.maxY, b);
-    g.appendChild(el("line", {x1: sx1, y1: worldToScreen(x,b.maxY,b)[1], x2: sx2, y2: worldToScreen(x,b.minY,b)[1], stroke: "var(--grid-line)", "stroke-width": 1}));
+
+  for (let x = startX; x <= b.maxX + step; x += step) {
+    const [sx] = w2s(x, b.minY, b);
+    const [, sy1] = w2s(x, b.maxY, b);
+    const [, sy2] = w2s(x, b.minY, b);
+    g.appendChild(el("line", { x1:sx, y1:sy1, x2:sx, y2:sy2,
+      stroke:"#162018", "stroke-width":1 }));
+    // axis label
+    const [, syL] = w2s(x, b.minY, b);
+    const lbl = el("text", { x:sx, y:syL+14, fill:"#2a3d32",
+      "font-size":9, "font-family":"JetBrains Mono,monospace",
+      "text-anchor":"middle" });
+    lbl.textContent = x.toFixed(0) + "m";
+    g.appendChild(lbl);
   }
-  for (let y = startY; y <= b.maxY; y += step) {
-    const [,sy1] = worldToScreen(b.minX, y, b);
-    g.appendChild(el("line", {x1: worldToScreen(b.minX,y,b)[0], y1: sy1, x2: worldToScreen(b.maxX,y,b)[0], y2: sy1, stroke: "var(--grid-line)", "stroke-width": 1}));
+  for (let y = startY; y <= b.maxY + step; y += step) {
+    const [, sy] = w2s(b.minX, y, b);
+    const [sx1]  = w2s(b.minX, y, b);
+    const [sx2]  = w2s(b.maxX, y, b);
+    g.appendChild(el("line", { x1:sx1, y1:sy, x2:sx2, y2:sy,
+      stroke:"#162018", "stroke-width":1 }));
+    const lbl = el("text", { x:sx1-8, y:sy+3, fill:"#2a3d32",
+      "font-size":9, "font-family":"JetBrains Mono,monospace",
+      "text-anchor":"end" });
+    lbl.textContent = y.toFixed(0) + "m";
+    g.appendChild(lbl);
   }
   return g;
 }
 
+function chooseBestStep(range) {
+  if (range < 10) return 1;
+  if (range < 40) return 5;
+  if (range < 150) return 10;
+  return 25;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   MAIN RENDER FUNCTION
+══════════════════════════════════════════════════════════════ */
 function render(state) {
   scope.innerHTML = "";
-  const anchors = state.anchors;
-  worldBounds = computeBounds(anchors);
-  const b = worldBounds;
+  const anchors = state.anchors || [];
+  worldBounds   = computeBounds(anchors);
+  const b       = worldBounds;
 
+  // 1. Grid
   scope.appendChild(drawGrid(b));
 
-  // distance rings (dashed) for anchors with a usable reading
+  // 2. RSSI distance rings (dashed circles around anchors)
   anchors.forEach(a => {
     if (a.distance && !a.stale) {
-      const [cx, cy] = worldToScreen(a.x, a.y, b);
-      const r = metersToPixels(a.distance, b);
+      const [cx, cy] = w2s(a.x, a.y, b);
+      const r        = m2p(a.distance, b);
+      const ringColor = a.sos_flag ? "var(--danger)" : "var(--phosphor-dim)";
       scope.appendChild(el("circle", {
         cx, cy, r,
         fill: "none",
-        stroke: "var(--phosphor-dim)",
+        stroke: ringColor,
         "stroke-width": 1,
-        "stroke-dasharray": "4 5",
-        opacity: 0.7
+        "stroke-dasharray": "5 6",
+        opacity: 0.65,
       }));
     }
   });
 
-  // trail
+  // 3. Position trail
   if (state.trail && state.trail.length > 1) {
-    let pts = state.trail.map(p => worldToScreen(p.x, p.y, b).join(",")).join(" ");
-    scope.appendChild(el("polyline", {
-      points: pts, fill: "none", stroke: "var(--amber)", "stroke-width": 1, opacity: 0.35
-    }));
+    // Colour trail segments by SOS state
+    for (let i = 1; i < state.trail.length; i++) {
+      const prev = state.trail[i - 1];
+      const curr = state.trail[i];
+      const [x1, y1] = w2s(prev.x, prev.y, b);
+      const [x2, y2] = w2s(curr.x, curr.y, b);
+      const lineColor = curr.sos_flag ? "#ff3d5a" : "var(--amber)";
+      scope.appendChild(el("line", {
+        x1, y1, x2, y2,
+        stroke: lineColor,
+        "stroke-width": 1.5,
+        opacity: 0.38,
+      }));
+    }
   }
 
-  // anchors
+  // 4. Anchors
   anchors.forEach(a => {
-    const [sx, sy] = worldToScreen(a.x, a.y, b);
-    const color = a.stale ? "var(--ink-dim)" : "var(--phosphor)";
-    scope.appendChild(el("circle", {cx: sx, cy: sy, r: 6, fill: "var(--bg)", stroke: color, "stroke-width": 2}));
-    scope.appendChild(el("circle", {cx: sx, cy: sy, r: 2, fill: color}));
-    const label = el("text", {x: sx + 10, y: sy - 8, fill: color, "font-size": 11, "font-family": "var(--mono)"});
-    label.textContent = a.id;
-    scope.appendChild(label);
+    const [sx, sy] = w2s(a.x, a.y, b);
+    const active   = !a.stale;
+    const isSOS    = a.sos_flag && active;
+    const color    = isSOS ? "var(--danger)" : active ? "var(--phosphor)" : "var(--ink-dim)";
+
+    // Glow ring for active anchors
+    if (active) {
+      scope.appendChild(el("circle", {
+        cx: sx, cy: sy, r: 14,
+        fill: "none",
+        stroke: color,
+        "stroke-width": 1,
+        opacity: 0.25,
+      }));
+    }
+    // Body
+    scope.appendChild(el("circle", {
+      cx: sx, cy: sy, r: 7,
+      fill: "var(--bg)", stroke: color, "stroke-width": 2.5,
+    }));
+    scope.appendChild(el("circle", { cx: sx, cy: sy, r: 3, fill: color }));
+
+    // Label
+    const lbl = el("text", {
+      x: sx + 13, y: sy - 9,
+      fill: color,
+      "font-size": 12,
+      "font-weight": 600,
+      "font-family": "JetBrains Mono,monospace",
+    });
+    lbl.textContent = a.id;
+    scope.appendChild(lbl);
+
+    // RSSI badge below anchor label
+    if (a.rssi !== null && a.rssi !== undefined && !a.stale) {
+      const rssi_lbl = el("text", {
+        x: sx + 13, y: sy + 5,
+        fill: "var(--ink-dim)",
+        "font-size": 10,
+        "font-family": "JetBrains Mono,monospace",
+      });
+      rssi_lbl.textContent = a.rssi.toFixed(0) + " dBm";
+      scope.appendChild(rssi_lbl);
+    }
   });
 
-  // estimated position
+  // 5. Estimated tourist position
+  const sosActive = state.sos_active;
   if (state.position) {
-    const [sx, sy] = worldToScreen(state.position.x, state.position.y, b);
-    const pulse = el("circle", {cx: sx, cy: sy, r: 14, fill: "none", stroke: "var(--amber)", "stroke-width": 1, opacity: 0.5});
-    scope.appendChild(pulse);
-    scope.appendChild(el("circle", {cx: sx, cy: sy, r: 7, fill: "var(--amber)", opacity: 0.25}));
-    scope.appendChild(el("circle", {cx: sx, cy: sy, r: 4, fill: "var(--amber)"}));
+    const [sx, sy] = w2s(state.position.x, state.position.y, b);
+    const dotColor = sosActive ? "var(--danger)" : "var(--amber)";
+    const ringCls  = sosActive ? "tourist-sos-ring" : "tourist-pulse-ring";
+
+    // Animated outer ring
+    const ring = el("circle", { cx: sx, cy: sy, r: 14, fill: "none",
+      stroke: dotColor, "stroke-width": 1.5, opacity: .7 }, ringCls);
+    scope.appendChild(ring);
+
+    // Mid halo
+    scope.appendChild(el("circle", {
+      cx: sx, cy: sy, r: 9,
+      fill: dotColor, opacity: .18,
+    }));
+    // Core dot
+    scope.appendChild(el("circle", {
+      cx: sx, cy: sy, r: 5.5,
+      fill: dotColor,
+    }));
+
+    // SOS crosshair lines
+    if (sosActive) {
+      const len = 22;
+      [[-1,0],[1,0],[0,-1],[0,1]].forEach(([dx,dy]) => {
+        scope.appendChild(el("line", {
+          x1: sx + dx * 12, y1: sy + dy * 12,
+          x2: sx + dx * (12+len), y2: sy + dy * (12+len),
+          stroke: "var(--danger)", "stroke-width": 1.5, opacity: .55,
+        }));
+      });
+    }
+
     document.getElementById("fix-state").textContent = "fix acquired";
     document.getElementById("fix-state").style.color = "var(--phosphor)";
-    document.getElementById("scope-readout").innerHTML =
-      `x = <b>${state.position.x.toFixed(2)}</b> m &nbsp;&nbsp; y = <b>${state.position.y.toFixed(2)}</b> m`;
+    document.getElementById("scope-readout").style.display = "block";
+
+    document.getElementById("ro-x").textContent   = state.position.x.toFixed(2) + " m";
+    document.getElementById("ro-y").textContent   = state.position.y.toFixed(2) + " m";
+    document.getElementById("ro-device").textContent = state.tourist_id || "—";
+
+    // GPS (offline — computed from RSSI trilateration)
+    if (state.gps) {
+      document.getElementById("ro-lat").textContent = state.gps.lat.toFixed(6) + "°N";
+      document.getElementById("ro-lng").textContent = state.gps.lng.toFixed(6) + "°E";
+    } else {
+      document.getElementById("ro-lat").textContent = "—";
+      document.getElementById("ro-lng").textContent = "—";
+    }
+
+    // SOS badge in readout
+    document.getElementById("ro-sos-badge").style.display = sosActive ? "inline-block" : "none";
+
   } else {
-    document.getElementById("fix-state").textContent = `no fix — need 3+ anchors (${state.usable_anchor_count} usable)`;
-    document.getElementById("fix-state").style.color = "var(--red)";
-    document.getElementById("scope-readout").innerHTML = "";
+    const usable = state.usable_anchor_count || 0;
+    document.getElementById("fix-state").textContent =
+      `no fix — need 3+ anchors (${usable} usable)`;
+    document.getElementById("fix-state").style.color = "var(--danger)";
+    document.getElementById("scope-readout").style.display = "none";
   }
 }
 
+
+/* ══════════════════════════════════════════════════════════════
+   SIGNAL BARS
+══════════════════════════════════════════════════════════════ */
 function signalBars(rssi) {
-  // rough scale: -90 (weak) to -40 (strong)
   let lit = 0;
-  if (rssi !== null && rssi !== undefined) {
-    if (rssi > -50) lit = 5;
+  if (rssi != null) {
+    if      (rssi > -50) lit = 5;
     else if (rssi > -60) lit = 4;
     else if (rssi > -70) lit = 3;
     else if (rssi > -80) lit = 2;
-    else lit = 1;
+    else                 lit = 1;
   }
-  let html = "";
-  for (let i = 0; i < 5; i++) html += `<i class="${i < lit ? 'lit' : ''}"></i>`;
-  return html;
+  return Array.from({length: 5}, (_, i) =>
+    `<i class="${i < lit ? 'lit' : ''}"></i>`
+  ).join("");
 }
 
+
+/* ══════════════════════════════════════════════════════════════
+   ANCHOR LIST
+══════════════════════════════════════════════════════════════ */
 function renderAnchorList(state) {
   const list = document.getElementById("anchor-list");
   list.innerHTML = "";
-  state.anchors.forEach(a => {
-    const row = document.createElement("div");
-    row.className = "anchor-row" + (a.stale ? " stale" : "");
+
+  (state.anchors || []).forEach(a => {
+    const staleClass = a.stale     ? " stale"      : "";
+    const sosClass   = a.sos_flag && !a.stale ? " sos-anchor" : "";
+    const row  = document.createElement("div");
+    row.className = `anchor-row${staleClass}${sosClass}`;
     row.innerHTML = `
-      <div class="anchor-id"><span class="dot"></span>${a.id}</div>
+      <div class="anchor-id">
+        <span class="anchor-dot"></span>
+        ${a.id}
+        ${a.sos_flag && !a.stale ? '<span style="color:var(--danger);font-size:10px;margin-left:4px">SOS</span>' : ''}
+      </div>
       <div class="signal-bars">${signalBars(a.rssi)}</div>
       <div class="anchor-meta">
-        <span>rssi <b>${a.rssi !== null && a.rssi !== undefined ? a.rssi.toFixed(0) + ' dBm' : '—'}</b></span>
-        <span>dist <b>${a.distance !== null && a.distance !== undefined ? a.distance.toFixed(1) + ' m' : '—'}</b></span>
-        <span>age <b>${a.age !== null && a.age !== undefined ? a.age + 's' : '—'}</b></span>
+        <span>rssi <b>${a.rssi != null ? a.rssi.toFixed(0) + ' dBm' : '—'}</b></span>
+        <span>dist <b>${a.distance != null ? a.distance.toFixed(2) + ' m' : '—'}</b></span>
+        <span>age  <b>${a.age  != null ? a.age + 's' : '—'}</b></span>
+        ${a.tourist_id ? `<span>id <b>${a.tourist_id}</b></span>` : ''}
       </div>
     `;
     list.appendChild(row);
   });
-  document.getElementById("anchor-count").textContent = `— ${state.anchors.length} anchors configured`;
-  document.getElementById("usable-count").textContent = `${state.usable_anchor_count} / ${state.anchors.length} usable`;
+
+  document.getElementById("anchor-count").textContent =
+    `— ${(state.anchors||[]).length} anchors`;
+  document.getElementById("usable-count").textContent =
+    `${state.usable_anchor_count||0} / ${(state.anchors||[]).length} usable`;
 }
 
-async function fetchInitialState() {
-  try {
-    const res = await fetch("/api/state");
-    const state = await res.json();
-    render(state);
-    renderAnchorList(state);
-  } catch (e) {
-    console.error("Failed to fetch initial state:", e);
+
+/* ══════════════════════════════════════════════════════════════
+   TOURIST BADGE (top bar)
+══════════════════════════════════════════════════════════════ */
+function updateTouristBadge(state) {
+  const badge = document.getElementById("tourist-badge");
+  const span  = document.getElementById("tourist-id-display");
+  if (state.tourist_id && state.position) {
+    badge.style.display = "inline-block";
+    span.textContent    = state.tourist_id;
+  } else {
+    badge.style.display = "none";
   }
 }
 
+
+/* ══════════════════════════════════════════════════════════════
+   SOS BANNER
+══════════════════════════════════════════════════════════════ */
+function updateSOSBanner(state) {
+  const banner = document.getElementById("sos-banner");
+  const ids    = document.getElementById("sos-banner-ids");
+  if (state.sos_active && !sosDismissed) {
+    banner.classList.add("active");
+    ids.textContent = (state.sos_tourists || []).join("  ·  ");
+  } else if (!state.sos_active) {
+    banner.classList.remove("active");
+    sosDismissed = false;   // auto-reset when SOS clears
+  }
+}
+
+function dismissSOS() {
+  sosDismissed = true;
+  document.getElementById("sos-banner").classList.remove("active");
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   SOS EVENT LOG
+══════════════════════════════════════════════════════════════ */
+function addSOSEvent(data) {
+  const now = data.timestamp || Date.now() / 1000;
+  const ts  = new Date(now * 1000).toLocaleTimeString("en-IN", {
+    hour12: false, hour:"2-digit", minute:"2-digit", second:"2-digit"
+  });
+
+  sosEventLog.unshift({ id: data.tourist_id, ts, gps: data.gps || null });
+  renderSOSLog();
+}
+
+function renderSOSLog() {
+  const list = document.getElementById("sos-list");
+  const count = document.getElementById("sos-count");
+
+  if (!sosEventLog.length) {
+    list.innerHTML = '<div class="sos-empty">No SOS events recorded.</div>';
+    count.textContent = "0 events";
+    return;
+  }
+
+  count.textContent = `${sosEventLog.length} event${sosEventLog.length > 1 ? "s" : ""}`;
+  list.innerHTML = sosEventLog.slice(0, 25).map(ev => `
+    <div class="sos-event-row">
+      <div class="sos-event-header">
+        <span class="sos-event-id">🚨 ${ev.id}</span>
+        <span class="sos-event-time">${ev.ts}</span>
+      </div>
+      ${ev.gps
+        ? `<div class="sos-event-coords">${ev.gps.lat.toFixed(6)}°N  ${ev.gps.lng.toFixed(6)}°E</div>`
+        : '<div class="sos-event-coords">GPS: computing…</div>'
+      }
+    </div>
+  `).join("");
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   FULL STATE UPDATE
+══════════════════════════════════════════════════════════════ */
+function applyState(state) {
+  render(state);
+  renderAnchorList(state);
+  updateTouristBadge(state);
+  updateSOSBanner(state);
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   SOCKET.IO — live updates
+══════════════════════════════════════════════════════════════ */
 const socket = io();
 
 socket.on("connect", () => {
   const pill = document.getElementById("status-pill");
   pill.textContent = "live";
-  pill.classList.remove("bad");
+  pill.className   = "badge online";
 });
 
 socket.on("disconnect", () => {
   const pill = document.getElementById("status-pill");
   pill.textContent = "server unreachable";
-  pill.classList.add("bad");
+  pill.className   = "badge offline";
 });
 
-socket.on("state_update", (state) => {
-  render(state);
-  renderAnchorList(state);
+socket.on("state_update", applyState);
+
+socket.on("sos_alert", (data) => {
+  // Real-time SOS push from server — update log immediately
+  addSOSEvent(data);
+  // Re-fetch full state so banner + scope update
+  fetchState();
 });
 
-fetchInitialState();
+
+/* ══════════════════════════════════════════════════════════════
+   INITIAL POLL
+══════════════════════════════════════════════════════════════ */
+async function fetchState() {
+  try {
+    const res   = await fetch("/api/state");
+    const state = await res.json();
+    applyState(state);
+  } catch (e) {
+    console.warn("State fetch failed:", e);
+  }
+}
+
+fetchState();
 </script>
 </body>
 </html>
