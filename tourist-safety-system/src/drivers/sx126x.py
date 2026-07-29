@@ -1,5 +1,5 @@
 # This file is used for LoRa and Raspberry pi4B/5 related issues
-# Includes lgpio fallback for Raspberry Pi OS Bookworm compatibility
+# Includes lgpio fallback and automatic gpio_free cleanup for GPIO busy errors
 
 import RPi.GPIO as GPIO
 import serial
@@ -85,6 +85,11 @@ class sx126x:
                 import lgpio
                 self.use_lgpio = True
                 self.chip = lgpio.gpiochip_open(0)
+                for pin in [self.M0, self.M1]:
+                    try:
+                        lgpio.gpio_free(self.chip, pin)
+                    except Exception:
+                        pass
                 lgpio.gpio_claim_output(self.chip, self.M0, 0)
                 lgpio.gpio_claim_output(self.chip, self.M1, 1)
             except Exception as e2:
@@ -95,20 +100,34 @@ class sx126x:
         self.set(freq,addr,power,rssi,air_speed,net_id,buffer_size,crypt,relay,lbt,wor)
 
     def _set_gpio(self, pin, val):
+        level = 1 if val else 0
         if getattr(self, 'use_lgpio', False):
             import lgpio
-            level = 1 if val else 0
-            lgpio.gpio_write(self.chip, pin, level)
+            try:
+                lgpio.gpio_write(self.chip, pin, level)
+            except Exception:
+                try:
+                    lgpio.gpio_free(self.chip, pin)
+                    lgpio.gpio_claim_output(self.chip, pin, level)
+                except Exception:
+                    pass
         else:
             try:
                 GPIO.output(pin, val)
             except Exception:
-                import lgpio
-                if not hasattr(self, 'chip'):
-                    self.chip = lgpio.gpiochip_open(0)
-                self.use_lgpio = True
-                level = 1 if val else 0
-                lgpio.gpio_write(self.chip, pin, level)
+                try:
+                    import lgpio
+                    if not hasattr(self, 'chip'):
+                        self.chip = lgpio.gpiochip_open(0)
+                    self.use_lgpio = True
+                    try:
+                        lgpio.gpio_free(self.chip, pin)
+                    except Exception:
+                        pass
+                    lgpio.gpio_claim_output(self.chip, pin, level)
+                    lgpio.gpio_write(self.chip, pin, level)
+                except Exception:
+                    pass
 
     def set(self,freq,addr,power,rssi,air_speed=2400,\
             net_id=0,buffer_size = 240,crypt=0,\
