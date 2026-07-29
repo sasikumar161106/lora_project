@@ -72,26 +72,27 @@ class sx126x:
         self.power = power
         
         # Initial the GPIO for M0 and M1 Pin with lgpio fallback for RPi OS Bookworm
-        self.use_lgpio = False
+        # Initial the GPIO for M0 and M1 Pin with lgpio primary for RPi OS Bookworm
+        self.use_lgpio = True
         try:
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setwarnings(False)
-            GPIO.setup(self.M0, GPIO.OUT)
-            GPIO.setup(self.M1, GPIO.OUT)
-            GPIO.output(self.M0, GPIO.LOW)
-            GPIO.output(self.M1, GPIO.HIGH)
+            import lgpio
+            self.chip = lgpio.gpiochip_open(0)
+            for pin in [self.M0, self.M1]:
+                try:
+                    lgpio.gpio_free(self.chip, pin)
+                except Exception:
+                    pass
+            lgpio.gpio_claim_output(self.chip, self.M0, 0)
+            lgpio.gpio_claim_output(self.chip, self.M1, 0)
         except Exception as e:
             try:
-                import lgpio
-                self.use_lgpio = True
-                self.chip = lgpio.gpiochip_open(0)
-                for pin in [self.M0, self.M1]:
-                    try:
-                        lgpio.gpio_free(self.chip, pin)
-                    except Exception:
-                        pass
-                lgpio.gpio_claim_output(self.chip, self.M0, 0)
-                lgpio.gpio_claim_output(self.chip, self.M1, 1)
+                GPIO.setmode(GPIO.BCM)
+                GPIO.setwarnings(False)
+                GPIO.setup(self.M0, GPIO.OUT)
+                GPIO.setup(self.M1, GPIO.OUT)
+                GPIO.output(self.M0, GPIO.LOW)
+                GPIO.output(self.M1, GPIO.LOW)
+                self.use_lgpio = False
             except Exception as e2:
                 print(f"GPIO Init warning: {e} / {e2}")
 
@@ -113,21 +114,9 @@ class sx126x:
                     pass
         else:
             try:
-                GPIO.output(pin, val)
+                GPIO.output(pin, GPIO.HIGH if val else GPIO.LOW)
             except Exception:
-                try:
-                    import lgpio
-                    if not hasattr(self, 'chip'):
-                        self.chip = lgpio.gpiochip_open(0)
-                    self.use_lgpio = True
-                    try:
-                        lgpio.gpio_free(self.chip, pin)
-                    except Exception:
-                        pass
-                    lgpio.gpio_claim_output(self.chip, pin, level)
-                    lgpio.gpio_write(self.chip, pin, level)
-                except Exception:
-                    pass
+                pass
 
     def set(self,freq,addr,power,rssi,air_speed=2400,\
             net_id=0,buffer_size = 240,crypt=0,\
