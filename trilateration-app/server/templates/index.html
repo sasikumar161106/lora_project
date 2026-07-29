@@ -651,22 +651,22 @@ function render(state) {
     }
   });
 
-  // 3. Position trail
-  if (state.trail && state.trail.length > 1) {
-    // Colour trail segments by SOS state
-    for (let i = 1; i < state.trail.length; i++) {
-      const prev = state.trail[i - 1];
-      const curr = state.trail[i];
-      const [x1, y1] = w2s(prev.x, prev.y, b);
-      const [x2, y2] = w2s(curr.x, curr.y, b);
-      const lineColor = curr.sos_flag ? "#ff3d5a" : "var(--amber)";
-      scope.appendChild(el("line", {
-        x1, y1, x2, y2,
-        stroke: lineColor,
-        "stroke-width": 1.5,
-        opacity: 0.38,
+  // 3. Position trail (Points / Dots instead of lines)
+  if (state.trail && state.trail.length > 0) {
+    const totalPoints = state.trail.length;
+    state.trail.forEach((pt, idx) => {
+      const [px, py] = w2s(pt.x, pt.y, b);
+      const ratio = (idx + 1) / totalPoints;
+      const opacity = 0.2 + ratio * 0.6;
+      const radius = 2.5 + ratio * 2.5; // Discrete points growing up to current position
+      const dotColor = pt.sos_flag ? "var(--danger)" : "var(--amber)";
+
+      scope.appendChild(el("circle", {
+        cx: px, cy: py, r: radius,
+        fill: dotColor,
+        opacity: opacity,
       }));
-    }
+    });
   }
 
   // 4. Anchors
