@@ -70,20 +70,16 @@ def run_relay(relay_id=None):
             if message:
                 print(f"[{relay_id}] 📥 Received: {message} | RSSI: {rssi} dBm")
                 
-                # Only respond to PING or SOS from tourists (NOT other relays' REPORTs)
-                # REPORT messages contain "PING"/"SOS" as substring, so exclude them
-                if ("PING" in message or "SOS" in message) and "REPORT" not in message:
+                clean_msg = message.strip().upper()
+                if clean_msg.startswith("PING:") or clean_msg.startswith("SOS:"):
                     pings_received += 1
                     
                     # Extract Tourist ID
                     # Message format: "PING:DEVICE_ID" or "SOS:DEVICE_ID"
                     try:
-                        parts = message.split(":")
-                        if len(parts) >= 2:
-                            tourist_id = parts[1].strip()
-                        else:
-                            tourist_id = "UNKNOWN"
-                    except:
+                        parts = clean_msg.split(":")
+                        tourist_id = parts[1].strip() if len(parts) >= 2 else "UNKNOWN"
+                    except Exception:
                         tourist_id = "UNKNOWN"
 
                     # Small delay to avoid collision with other relays
