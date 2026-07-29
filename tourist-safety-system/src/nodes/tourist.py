@@ -44,18 +44,21 @@ class TouristNode:
         freq = LORA_SETTINGS.get("FREQUENCY", 865)
         
         if IS_RASPBERRY_PI:
-            import RPi.GPIO as GPIO
             try:
                 self.node = sx126x(serial_num=SERIAL_PORT, freq=freq, addr=100, power=22, rssi=False)
                 print(f"{Colors.GREEN}✓ LoRa initialized at {freq} MHz{Colors.RESET}")
-                
-                # Setup SOS button
+            except Exception as e:
+                print(f"{Colors.YELLOW}⚠ Hardware init failed: {e}{Colors.RESET}")
+
+            # Setup SOS button
+            try:
+                import RPi.GPIO as GPIO
                 GPIO.setmode(GPIO.BCM)
                 GPIO.setup(SOS_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
                 self.sos_button_available = True
                 print(f"{Colors.GREEN}✓ SOS button on GPIO {SOS_PIN}{Colors.RESET}")
-            except Exception as e:
-                print(f"{Colors.YELLOW}⚠ Hardware init failed: {e}{Colors.RESET}")
+            except Exception as gpio_err:
+                print(f"{Colors.YELLOW}⚠ SOS button pin GPIO {SOS_PIN} disabled: {gpio_err}{Colors.RESET}")
         else:
             print(f"{Colors.YELLOW}⚠ Running in simulation mode (not on Pi){Colors.RESET}")
 

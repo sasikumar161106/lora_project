@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
 # --- 5. Backend API Configuration ---
 # URL of the backend server (change for production deployment)
-BACKEND_URL = os.environ.get('BACKEND_URL', 'http://192.168.0.32:5000')
+BACKEND_URL = os.environ.get('BACKEND_URL', 'http://192.168.0.69:5000')
 
 # API Key for authenticating with the backend (must match backend's GATEWAY_API_KEY)
 GATEWAY_API_KEY = os.environ.get('GATEWAY_API_KEY', 'my-secret-key-12345')

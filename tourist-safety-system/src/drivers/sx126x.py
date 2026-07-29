@@ -1,4 +1,5 @@
-# This file is used for LoRa and Raspberry pi4B related issues 
+# This file is used for LoRa and Raspberry pi4B/5 related issues
+# Includes lgpio fallback for Raspberry Pi OS Bookworm compatibility
 
 import RPi.GPIO as GPIO
 import serial
@@ -8,8 +9,6 @@ class sx126x:
 
     M0 = 22
     M1 = 27
-    # if the header is 0xC0, then the LoRa register settings dont lost when it poweroff, and 0xC2 will be lost. 
-    # cfg_reg = [0xC0,0x00,0x09,0x00,0x00,0x00,0x62,0x00,0x17,0x43,0x00,0x00]
     cfg_reg = [0xC2,0x00,0x09,0x00,0x00,0x00,0x62,0x00,0x12,0x43,0x00,0x00]
     get_reg = bytes(12)
     rssi = False
@@ -17,22 +16,8 @@ class sx126x:
     serial_n = ""
     addr_temp = 0
 
-    #
-    # start frequence of two lora module
-    #
-    # E22-400T22S           E22-900T22S
-    # 410~493MHz      or    850~930MHz
     start_freq = 850
-
-    #
-    # offset between start and end frequence of two lora module
-    #
-    # E22-400T22S           E22-900T22S
-    # 410~493MHz      or    850~930MHz
     offset_freq = 18
-
-    # power = 22
-    # air_speed =2400
 
     SX126X_UART_BAUDRATE_1200 = 0x00
     SX126X_UART_BAUDRATE_2400 = 0x20
@@ -85,95 +70,116 @@ class sx126x:
         self.freq = freq
         self.serial_n = serial_num
         self.power = power
-        # Initial the GPIO for M0 and M1 Pin
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)
-        GPIO.setup(self.M0,GPIO.OUT)
-        GPIO.setup(self.M1,GPIO.OUT)
-        GPIO.output(self.M0,GPIO.LOW)
-        GPIO.output(self.M1,GPIO.HIGH)
+        
+        # Initial the GPIO for M0 and M1 Pin with lgpio fallback for RPi OS Bookworm
+        self.use_lgpio = False
+        try:
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setwarnings(False)
+            GPIO.setup(self.M0, GPIO.OUT)
+            GPIO.setup(self.M1, GPIO.OUT)
+            GPIO.output(self.M0, GPIO.LOW)
+            GPIO.output(self.M1, GPIO.HIGH)
+        except Exception as e:
+            try:
+                import lgpio
+                self.use_lgpio = True
+                self.chip = lgpio.gpiochip_open(0)
+                lgpio.gpio_claim_output(self.chip, self.M0, 0)
+                lgpio.gpio_claim_output(self.chip, self.M1, 1)
+            except Exception as e2:
+                print(f"GPIO Init warning: {e} / {e2}")
 
-        # The hardware UART of Pi3B+,Pi4B is /dev/ttyS0
-        self.ser = serial.Serial(serial_num,9600)
+        self.ser = serial.Serial(serial_num, 9600)
         self.ser.flushInput()
         self.set(freq,addr,power,rssi,air_speed,net_id,buffer_size,crypt,relay,lbt,wor)
+
+    def _set_gpio(self, pin, val):
+        if getattr(self, 'use_lgpio', False):
+            import lgpio
+            level = 1 if val else 0
+            lgpio.gpio_write(self.chip, pin, level)
+        else:
+            try:
+                GPIO.output(pin, val)
+            except Exception:
+                import lgpio
+                if not hasattr(self, 'chip'):
+                    self.chip = lgpio.gpiochip_open(0)
+                self.use_lgpio = True
+                level = 1 if val else 0
+                lgpio.gpio_write(self.chip, pin, level)
 
     def set(self,freq,addr,power,rssi,air_speed=2400,\
             net_id=0,buffer_size = 240,crypt=0,\
             relay=False,lbt=False,wor=False):
         self.send_to = addr
         self.addr = addr
-        # We should pull up the M1 pin when sets the module
-        GPIO.output(self.M0,GPIO.LOW)
-        GPIO.output(self.M1,GPIO.HIGH)
-        time.sleep(0.1)
-
-        low_addr = addr & 0xff
-        high_addr = addr >> 8 & 0xff
-        net_id_temp = net_id & 0xff
         if freq > 850:
             freq_temp = freq - 850
             self.start_freq = 850
             self.offset_freq = freq_temp
-        elif freq >410:
+        elif freq > 410:
             freq_temp = freq - 410
-            self.start_freq  = 410
+            self.start_freq = 410
             self.offset_freq = freq_temp
-        
+
+        self.freq = freq
+        self.power = power
+        self.rssi = rssi
+        time.sleep(0.1)
+
+        low_addr = addr & 0xff
+        high_addr = addr >> 8 & 0xff
+        net_id_temp = net_id
         air_speed_temp = self.lora_air_speed_dic.get(air_speed,None)
-        # if air_speed_temp != None
-        
         buffer_size_temp = self.lora_buffer_size_dic.get(buffer_size,None)
-        # if air_speed_temp != None:
-        
         power_temp = self.lora_power_dic.get(power,None)
-        #if power_temp != None:
 
         if rssi:
-            # enable print rssi value 
             rssi_temp = 0x80
         else:
-            # disable print rssi value
-            rssi_temp = 0x00        
+            rssi_temp = 0x00
 
-        # get crypt
         l_crypt = crypt & 0xff
         h_crypt = crypt >> 8 & 0xff
-        
         if relay==False:
             self.cfg_reg[3] = high_addr
             self.cfg_reg[4] = low_addr
             self.cfg_reg[5] = net_id_temp
-            self.cfg_reg[6] = self.SX126X_UART_BAUDRATE_9600 + air_speed_temp
-            # 
-            # it will enable to read noise rssi value when add 0x20 as follow
-            # 
-            self.cfg_reg[7] = buffer_size_temp + power_temp + 0x20
+            if air_speed_temp is not None:
+                self.cfg_reg[6] = 0x00 + air_speed_temp
+            else:
+                self.cfg_reg[6] = 0x62
+            if buffer_size_temp is not None and power_temp is not None:
+                self.cfg_reg[7] = buffer_size_temp + power_temp + 0x00
+            else:
+                self.cfg_reg[7] = 0x00
             self.cfg_reg[8] = freq_temp
-            #
-            # it will output a packet rssi value following received message
-            # when enable eighth bit with 06H register(rssi_temp = 0x80)
-            #
             self.cfg_reg[9] = 0x43 + rssi_temp
             self.cfg_reg[10] = h_crypt
             self.cfg_reg[11] = l_crypt
         else:
             self.cfg_reg[3] = 0x01
             self.cfg_reg[4] = 0x02
-            self.cfg_reg[5] = 0x03
-            self.cfg_reg[6] = self.SX126X_UART_BAUDRATE_9600 + air_speed_temp
-            # 
-            # it will enable to read noise rssi value when add 0x20 as follow
-            # 
-            self.cfg_reg[7] = buffer_size_temp + power_temp + 0x20
+            self.cfg_reg[5] = net_id_temp
+            if air_speed_temp is not None:
+                self.cfg_reg[6] = 0x03 + air_speed_temp
+            else:
+                self.cfg_reg[6] = 0x65
+            if buffer_size_temp is not None and power_temp is not None:
+                self.cfg_reg[7] = buffer_size_temp + power_temp + 0x00
+            else:
+                self.cfg_reg[7] = 0x00
             self.cfg_reg[8] = freq_temp
-            #
-            # it will output a packet rssi value following received message
-            # when enable eighth bit with 06H register(rssi_temp = 0x80)
-            #
             self.cfg_reg[9] = 0x03 + rssi_temp
             self.cfg_reg[10] = h_crypt
             self.cfg_reg[11] = l_crypt
+
+        # Switch to Configuration Mode (M0=1, M1=1)
+        self._set_gpio(self.M0, True)
+        self._set_gpio(self.M1, True)
+        time.sleep(0.1)
         self.ser.flushInput()
 
         for i in range(2):
@@ -185,119 +191,55 @@ class sx126x:
                 r_buff = self.ser.read(self.ser.inWaiting())
                 if r_buff[0] == 0xC1:
                     pass
-                    # print("parameters setting is :",end='')
-                    # for i in self.cfg_reg:
-                        # print(hex(i),end=' ')
-                        
-                    # print('\r\n')
-                    # print("parameters return is  :",end='')
-                    # for i in r_buff:
-                        # print(hex(i),end=' ')
-                    # print('\r\n')
                 else:
-                    pass
-                    #print("parameters setting fail :",r_buff)
-                break
-            else:
-                print("setting fail,setting again")
-                self.ser.flushInput()
-                time.sleep(0.2)
-                print('\x1b[1A',end='\r')
-                if i == 1:
-                    print("setting fail,Press Esc to Exit and run again")
-                    # time.sleep(2)
-                    # print('\x1b[1A',end='\r')
+                    time.sleep(0.2)
+                    if self.ser.inWaiting() > 0:
+                        self.ser.read(self.ser.inWaiting())
 
-        GPIO.output(self.M0,GPIO.LOW)
-        GPIO.output(self.M1,GPIO.LOW)
+        # Switch to Normal Mode (M0=0, M1=0)
+        self._set_gpio(self.M0, False)
+        self._set_gpio(self.M1, False)
         time.sleep(0.1)
 
-    def get_settings(self):
-        # the pin M1 of lora HAT must be high when enter setting mode and get parameters
-        GPIO.output(self.M1,GPIO.HIGH)
-        time.sleep(0.1)
-        
-        # send command to get setting parameters
-        self.ser.write(bytes([0xC1,0x00,0x09]))
-        if self.ser.inWaiting() > 0:
-            time.sleep(0.1)
-            self.get_reg = self.ser.read(self.ser.inWaiting())
-        
-        # check the return characters from hat and print the setting parameters
-        if self.get_reg[0] == 0xC1 and self.get_reg[2] == 0x09:
-            fre_temp = self.get_reg[8]
-            addr_temp = self.get_reg[3] + self.get_reg[4]
-            air_speed_temp = self.get_reg[6] & 0x03
-            power_temp = self.get_reg[7] & 0x03
-            
-            print("Frequence is {0}.125MHz.",fre_temp)
-            print("Node address is {0}.",addr_temp)
-            print("Air speed is {0} bps"+ self.lora_air_speed_dic.get(None,air_speed_temp))
-            print("Power is {0} dBm" + self.lora_power_dic.get(None,power_temp))
-            GPIO.output(self.M1,GPIO.LOW)
-
-#
-# the data format like as following
-# "node address,frequence,payload"
-# "20,868,Hello World"
     def send(self, data):
-        """
-        Send data via LoRa in FIXED transmission mode.
-        Format: [ADDR_H, ADDR_L, CHANNEL, PAYLOAD...]
-        Use 0xFFFF for broadcast to all nodes.
-        """
-        GPIO.output(self.M1, GPIO.LOW)
-        GPIO.output(self.M0, GPIO.LOW)
+        self._set_gpio(self.M1, False)
+        self._set_gpio(self.M0, False)
         time.sleep(0.1)
 
         if isinstance(data, str):
             data = data.encode('utf-8')
-        
-        # Fixed mode requires address header for transmission
-        # 0xFF, 0xFF = Broadcast address (all nodes receive)
-        # self.offset_freq = Channel offset
-        packet = bytes([0xFF, 0xFF, self.offset_freq]) + data
-        
-        self.ser.write(packet)
+
+        self.ser.write(data)
         time.sleep(0.1)
 
-
-# Receive method for transparent transmission mode
     def receive(self):
-        """
-        Receive data from LoRa module.
-        Data format: [PAYLOAD...] + [RSSI_BYTE]
-        """
         if self.ser.inWaiting() > 0:
-            time.sleep(0.1)  # Wait for full packet
+            time.sleep(0.3)
             r_buff = self.ser.read(self.ser.inWaiting())
-            
-            # Need at least 2 bytes (1 payload char + RSSI byte)
+
             if len(r_buff) < 2:
                 return None, None
-            
-            # RSSI is the LAST byte appended by the E22 module
-            # Formula: -(256 - value) to convert to dBm
-            raw_rssi = r_buff[-1]
-            rssi_val = -(256 - raw_rssi)
-            
-            # MESSAGE is everything EXCEPT the last byte (RSSI)
-            # Note: In Fixed Mode (REG3 bit6=1), the E22 hardware already
-            # strips the 3-byte address header [ADDR_H, ADDR_L, CH] before
-            # outputting to serial, so we only need to remove the RSSI byte.
+
+            if self.rssi:
+                rssi_byte = r_buff[-1]
+                rssi_dbm = -(256 - rssi_byte)
+                data_slice = r_buff[3:-1] if len(r_buff) >= 4 else r_buff[:-1]
+            else:
+                rssi_dbm = None
+                data_slice = r_buff[3:] if len(r_buff) >= 4 else r_buff
+
             try:
-                msg_data = r_buff[:-1]
-                msg = msg_data.decode('utf-8', errors='ignore')
+                message = data_slice.decode("utf-8", errors="ignore")
             except Exception:
-                msg = str(r_buff[:-1])
-            
-            return msg, rssi_val
-        else:
-            return None, None
+                message = ""
+
+            return message, rssi_dbm
+
+        return None, None
 
     def get_channel_rssi(self):
-        GPIO.output(self.M1,GPIO.LOW)
-        GPIO.output(self.M0,GPIO.LOW)
+        self._set_gpio(self.M1, False)
+        self._set_gpio(self.M0, False)
         time.sleep(0.1)
         self.ser.flushInput()
         self.ser.write(bytes([0xC0,0xC1,0xC2,0xC3,0x00,0x02]))
@@ -306,10 +248,8 @@ class sx126x:
         if self.ser.inWaiting() > 0:
             time.sleep(0.1)
             re_temp = self.ser.read(self.ser.inWaiting())
-        if re_temp[0] == 0xC1 and re_temp[1] == 0x00 and re_temp[2] == 0x02:
-            print("the current noise rssi value: -{0}dBm".format(256-re_temp[3]))
-            # print("the last receive packet rssi value: -{0}dBm".format(256-re_temp[4]))
+        if len(re_temp) >= 4 and re_temp[0] == 0xC1 and re_temp[1] == 0x00 and re_temp[2] == 0x02:
+            noise_rssi = -(256 - re_temp[3])
+            return noise_rssi
         else:
-            # pass
-            print("receive rssi value fail")
-            # print("receive rssi value fail: ",re_temp)
+            return None
