@@ -195,8 +195,8 @@ class sx126x:
             self.cfg_reg[10] = h_crypt
             self.cfg_reg[11] = l_crypt
 
-        # Switch to Configuration Mode (M0=1, M1=1)
-        self._set_gpio(self.M0, True)
+        # Switch to Configuration Mode (M0=0, M1=1)
+        self._set_gpio(self.M0, False)
         self._set_gpio(self.M1, True)
         time.sleep(0.1)
         self.ser.flushInput()
