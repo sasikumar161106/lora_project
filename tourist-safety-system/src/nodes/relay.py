@@ -72,7 +72,7 @@ def run_relay(relay_id=None):
                 print(f"[{relay_id}] 📥 Received: {message} | RSSI: {rssi} dBm")
                 
                 clean_msg = message.strip().upper()
-                if clean_msg.startswith("PING:") or clean_msg.startswith("SOS:"):
+                if not clean_msg.startswith("REPORT:") and ("PING:" in clean_msg or "SOS:" in clean_msg):
                     pings_received += 1
                     
                     # Extract Tourist ID
