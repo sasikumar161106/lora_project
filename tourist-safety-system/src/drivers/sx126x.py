@@ -223,17 +223,19 @@ class sx126x:
     def send(self, data):
         self._set_gpio(self.M1, False)
         self._set_gpio(self.M0, False)
-        time.sleep(0.1)
+        time.sleep(0.05)
 
         if isinstance(data, str):
             data = data.encode('utf-8')
 
-        self.ser.write(data)
-        time.sleep(0.1)
+        # Prepend 3-byte broadcast header [0xFF, 0xFF, channel_offset] for Fixed Mode
+        packet = bytes([0xFF, 0xFF, self.offset_freq]) + data
+        self.ser.write(packet)
+        time.sleep(0.05)
 
     def receive(self):
         if self.ser.inWaiting() > 0:
-            time.sleep(0.3)
+            time.sleep(0.15)
             r_buff = self.ser.read(self.ser.inWaiting())
 
             if len(r_buff) < 2:
@@ -242,15 +244,15 @@ class sx126x:
             if self.rssi:
                 rssi_byte = r_buff[-1]
                 rssi_dbm = -(256 - rssi_byte)
-                data_slice = r_buff[3:-1] if len(r_buff) >= 4 else r_buff[:-1]
+                data_slice = r_buff[:-1]
             else:
                 rssi_dbm = None
-                data_slice = r_buff[3:] if len(r_buff) >= 4 else r_buff
+                data_slice = r_buff
 
             try:
                 message = data_slice.decode("utf-8", errors="ignore")
             except Exception:
-                message = ""
+                message = str(data_slice)
 
             return message, rssi_dbm
 

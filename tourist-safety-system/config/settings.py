@@ -24,7 +24,7 @@ LORA_PINS = {
 
 # LoRa Radio Settings
 LORA_SETTINGS = {
-    "FREQUENCY": 865,      # 865 MHz for India (850-930 MHz band for E22-900T22S)
+    "FREQUENCY": 868,      # 868 MHz ISM Band for Waveshare SX1262 868M LoRa HAT
     "TX_POWER": 22,        # Max power (dBm)
     "BANDWIDTH": 125.0,    # kHz
     "SPREADING_FACTOR": 9, # Higher = More Range, Slower Speed
