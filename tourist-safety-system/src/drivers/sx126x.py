@@ -175,7 +175,7 @@ class sx126x:
             else:
                 self.cfg_reg[7] = 0x00
             self.cfg_reg[8] = freq_temp
-            self.cfg_reg[9] = 0x43 + rssi_temp
+            self.cfg_reg[9] = 0x03 + (0x80 if rssi else 0x00)
             self.cfg_reg[10] = h_crypt
             self.cfg_reg[11] = l_crypt
         else:
@@ -191,7 +191,7 @@ class sx126x:
             else:
                 self.cfg_reg[7] = 0x00
             self.cfg_reg[8] = freq_temp
-            self.cfg_reg[9] = 0x03 + rssi_temp
+            self.cfg_reg[9] = 0x03 + (0x80 if rssi else 0x00)
             self.cfg_reg[10] = h_crypt
             self.cfg_reg[11] = l_crypt
 
@@ -215,7 +215,7 @@ class sx126x:
                     if self.ser.inWaiting() > 0:
                         self.ser.read(self.ser.inWaiting())
 
-        # Switch to Normal Mode (M0=0, M1=0)
+        # Switch back to Normal Mode (M0=0, M1=0) for active RF TX/RX
         self._set_gpio(self.M0, False)
         self._set_gpio(self.M1, False)
         time.sleep(0.1)
@@ -228,9 +228,8 @@ class sx126x:
         if isinstance(data, str):
             data = data.encode('utf-8')
 
-        # Prepend 3-byte broadcast header [0xFF, 0xFF, channel_offset] for Fixed Mode
-        packet = bytes([0xFF, 0xFF, self.offset_freq]) + data
-        self.ser.write(packet)
+        # In Transparent Mode (0x03/0x83), payload is transmitted as-is over RF
+        self.ser.write(data)
         time.sleep(0.05)
 
     def receive(self):
