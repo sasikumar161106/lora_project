@@ -65,9 +65,12 @@ GPS_REFERENCE = {
 # Fixed anchor positions in LOCAL meters (A1 = origin 0,0)
 # Measure the other anchors' distances from A1 with a tape measure.
 ANCHORS = {
-    "A1": {"x": 0.0,  "y": 0.0},
-    "A2": {"x": 5.0,  "y": 0.0},
-    "A3": {"x": 1.76, "y": 3.81},
+    "A1":       {"x": 0.0,  "y": 0.0},
+    "A2":       {"x": 5.0,  "y": 0.0},
+    "A3":       {"x": 2.5,  "y": 4.33},
+    "MASTER":   {"x": 0.0,  "y": 0.0},
+    "ANCHOR_2": {"x": 5.0,  "y": 0.0},
+    "ANCHOR_3": {"x": 2.5,  "y": 4.33},
 }
 
 # RSSI-to-distance calibration (log-distance path-loss model):
