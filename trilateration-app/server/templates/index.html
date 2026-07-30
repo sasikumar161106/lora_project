@@ -179,6 +179,61 @@ body {
 .badge.tracking { color: var(--amber); border-color: var(--amber-dim); }
 
 /* ════════════════════════════════════════════════════════════════
+   NETWORK TOPOLOGY BANNER
+═══════════════════════════════════════════════════════════════ */
+.topology-banner {
+  background: #0a120d;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  overflow-x: auto;
+}
+.topo-zone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topo-zone-title {
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+}
+.topo-node {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+.topo-node.offline-node { border-color: #233b2c; }
+.topo-node.gateway-node { border-color: var(--phosphor-dim); box-shadow: 0 0 10px var(--phosphor-glow); }
+.topo-node.online-node  { border-color: #1a455c; }
+.topo-tag {
+  font-size: 8px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 2px;
+  font-weight: 700;
+}
+.topo-tag.tag-offline { background: rgba(74,107,88,.2); color: #8cb89f; }
+.topo-tag.tag-gateway { background: var(--phosphor-glow); color: var(--phosphor-bright); }
+.topo-tag.tag-online  { background: rgba(56,189,248,.2); color: #7dd3fc; }
+.topo-arrow {
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+/* ════════════════════════════════════════════════════════════════
    LAYOUT GRID
 ═══════════════════════════════════════════════════════════════ */
 .layout {
@@ -448,6 +503,45 @@ body {
       📍 <span id="tourist-id-display">—</span>
     </span>
     <span class="badge" id="status-pill">connecting…</span>
+  </div>
+</div>
+
+<!-- ═══════ SYSTEM NETWORK TOPOLOGY ═══════ -->
+<div class="topology-banner">
+  <!-- Offline Zone -->
+  <div class="topo-zone">
+    <span class="topo-zone-title">Offline Zone (No Internet)</span>
+    <div class="topo-node offline-node">
+      <span>🚶 Tourist Pi</span>
+      <span class="topo-tag tag-offline">LoRa PING</span>
+    </div>
+    <span class="topo-arrow">➔</span>
+    <div class="topo-node offline-node">
+      <span>📡 Relays A2 & A3</span>
+      <span class="topo-tag tag-offline">LoRa REPORT</span>
+    </div>
+  </div>
+
+  <span class="topo-arrow" style="font-weight:bold;color:var(--phosphor)">➔</span>
+
+  <!-- Gateway Boundary -->
+  <div class="topo-zone">
+    <span class="topo-zone-title">Gateway Boundary</span>
+    <div class="topo-node gateway-node">
+      <span>🛰️ Master Pi (A1)</span>
+      <span class="topo-tag tag-gateway">LoRa + Wi-Fi</span>
+    </div>
+  </div>
+
+  <span class="topo-arrow" style="font-weight:bold;color:#7dd3fc">➔</span>
+
+  <!-- Online Zone -->
+  <div class="topo-zone">
+    <span class="topo-zone-title">Online Zone</span>
+    <div class="topo-node online-node">
+      <span>💻 Server & Dashboard</span>
+      <span class="topo-tag tag-online">Trilateration + GPS</span>
+    </div>
   </div>
 </div>
 

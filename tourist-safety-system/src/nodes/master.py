@@ -186,6 +186,8 @@ class MasterNode:
                 
                 if len(parts) >= 4:
                     sender_anchor_id = parts[1].strip().upper()
+                    alias_map = {"A1": "MASTER", "A2": "ANCHOR_2", "A3": "ANCHOR_3"}
+                    sender_anchor_id = alias_map.get(sender_anchor_id, sender_anchor_id)
                     reported_tourist_id = parts[2].strip().upper()
                     reported_rssi = int(parts[3])
                     

@@ -321,6 +321,11 @@ def post_reading():
     sos_flag   = bool(data.get("sos_flag", False))
     timestamp  = float(data.get("timestamp", time.time()))
 
+    # Normalize anchor ID aliases
+    alias_map = {"MASTER": "A1", "ANCHOR_2": "A2", "ANCHOR_3": "A3"}
+    if anchor_id in alias_map:
+        anchor_id = alias_map[anchor_id]
+
     # Validate anchor
     if anchor_id not in ANCHORS:
         return jsonify({"error": f"Unknown anchor_id '{anchor_id}'"}), 400
@@ -400,15 +405,24 @@ def update_location():
     sos_flag = bool(data.get("sos_flag", False))
     timestamp = float(data.get("timestamp", time.time()))
 
+    # Calculate lat/lng if not explicitly passed
+    lat = data.get("lat")
+    lng = data.get("lng")
+    if lat is None or lng is None:
+        lat, lng = xy_to_gps(x, y)
+
     with state_lock:
         current_tourist_id = device_id
         if sos_flag:
             record_sos(device_id, timestamp)
 
         sx, sy = kalman_tracker.update(x, y, timestamp)
+        slat, slng = xy_to_gps(sx, sy)
         position_trail.append({
             "x": sx,
             "y": sy,
+            "lat": slat,
+            "lng": slng,
             "t": timestamp,
             "tourist_id": device_id,
             "sos_flag": sos_flag,
@@ -430,12 +444,20 @@ def batch_update_location():
         y = float(loc.get("y", 0.0))
         sos_flag = bool(loc.get("sos_flag", False))
         ts = float(loc.get("timestamp", time.time()))
+
+        lat = loc.get("lat")
+        lng = loc.get("lng")
+        if lat is None or lng is None:
+            lat, lng = xy_to_gps(x, y)
+
         with state_lock:
             if sos_flag:
                 record_sos(device_id, ts)
             position_trail.append({
                 "x": x,
                 "y": y,
+                "lat": lat,
+                "lng": lng,
                 "t": ts,
                 "tourist_id": device_id,
                 "sos_flag": sos_flag,
@@ -558,6 +580,14 @@ def _build_state_payload(now: float) -> dict:
             if result:
                 position = {"x": result[0], "y": result[1]}
                 lat, lng = xy_to_gps(result[0], result[1])
+                gps = {"lat": lat, "lng": lng}
+        elif position_trail:
+            latest = position_trail[-1]
+            position = {"x": latest["x"], "y": latest["y"]}
+            if "lat" in latest and "lng" in latest:
+                gps = {"lat": latest["lat"], "lng": latest["lng"]}
+            else:
+                lat, lng = xy_to_gps(latest["x"], latest["y"])
                 gps = {"lat": lat, "lng": lng}
 
         trail = list(position_trail[-MAX_TRAIL:])

@@ -181,8 +181,11 @@ class BackendClient:
                 timeout=self.timeout * 2
             )
             
-            if response.status_code == 200:
-                return response.json().get('data', {})
+            if response.status_code in [200, 201]:
+                res_json = response.json()
+                if isinstance(res_json, dict) and "data" in res_json:
+                    return res_json["data"]
+                return res_json
             return {"processed": 0, "failed": len(locations)}
             
         except Exception as e:

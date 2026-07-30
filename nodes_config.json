@@ -1,0 +1,36 @@
+{
+  "nodes": [
+    {
+      "ip": "192.168.0.146",
+      "username": "onlybrains2",
+      "password": "pi",
+      "role": "master",
+      "id": "MASTER",
+      "remote_dir": "/home/onlybrains2/lora_project/tourist-safety-system"
+    },
+    {
+      "ip": "192.168.0.21",
+      "username": "pi",
+      "password": "pi",
+      "role": "relay",
+      "id": "ANCHOR_2",
+      "remote_dir": "/home/pi/lora_project/tourist-safety-system"
+    },
+    {
+      "ip": "192.168.0.31",
+      "username": "pi",
+      "password": "pi",
+      "role": "relay",
+      "id": "ANCHOR_3",
+      "remote_dir": "/home/pi/lora_project/tourist-safety-system"
+    },
+    {
+      "ip": "192.168.0.99",
+      "username": "pi",
+      "password": "pi",
+      "role": "tourist",
+      "id": "DEV001",
+      "remote_dir": "/home/pi/lora_project/tourist-safety-system"
+    }
+  ]
+}
